@@ -1,0 +1,8 @@
+prefix=/usr/local
+
+Name: uw_dyn
+Description: Description of uw_dyn
+Version: 2.5.17
+Cflags: -I/usr/local/include
+Libs: -L/usr/local/lib -lgazebo_ros_imu
+Requires: message_runtime gazebo_msgs roscpp rospy angles geometry_msgs sensor_msgs rosconsole std_msgs

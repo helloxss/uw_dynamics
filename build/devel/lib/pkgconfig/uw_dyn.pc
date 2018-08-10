@@ -1,0 +1,8 @@
+prefix=/home/holy_cow/cowGazebo/uw_dyn/build/devel
+
+Name: uw_dyn
+Description: Description of uw_dyn
+Version: 2.5.17
+Cflags: -I/home/holy_cow/cowGazebo/uw_dyn/include
+Libs: -L/home/holy_cow/cowGazebo/uw_dyn/build/devel/lib -lgazebo_ros_imu
+Requires: message_runtime gazebo_msgs roscpp rospy angles geometry_msgs sensor_msgs rosconsole std_msgs

@@ -1,0 +1,6 @@
+set(uw_dyn_SETUP_PY_VERSION "2.5.17")
+set(uw_dyn_SETUP_PY_SCRIPTS "")
+set(uw_dyn_SETUP_PY_PACKAGES "uw_dyn")
+set(uw_dyn_SETUP_PY_PACKAGE_DIRS "src/uw_dyn")
+set(uw_dyn_SETUP_PY_MODULES "")
+set(uw_dyn_SETUP_PY_MODULE_DIRS "")
