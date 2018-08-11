@@ -38,6 +38,7 @@ namespace gazebo
 
     /// \brief Center of volume in the link frame.
     public: ignition::math::Vector3d cov;
+    public: math::Vector3 cop;
 
     /// \brief Volume of this link.
     public: double volume;
@@ -132,9 +133,6 @@ namespace gazebo
 
     /// \brief Smooth velocity
     protected: math::Vector3 velSmooth;
-
-    /// \brief Names of allowed target links, specified in sdf parameters.
-    protected: std::string linkName;
 
     /// \brief Pointer to link currently targeted by mud joint.
     protected: physics::LinkPtr link;
