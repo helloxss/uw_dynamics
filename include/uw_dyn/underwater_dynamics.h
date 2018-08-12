@@ -39,9 +39,18 @@ namespace gazebo
     /// \brief Center of volume in the link frame.
     public: ignition::math::Vector3d cov;
     public: math::Vector3 cop;
+    /// \brief forward flight direction in link local coordinates
+    public: math::Vector3 forward;
+
+    /// \brief A vector in the lift/drag plane, anything orthogonal to it
+    /// is considered wing sweep.
+    public: math::Vector3 upward;
 
     /// \brief Volume of this link.
     public: double volume;
+
+    /// \brief effective planeform surface area
+    public: double area;
   };
 
   /// \brief A plugin that simulates lift and drag.
@@ -109,9 +118,6 @@ namespace gazebo
     /// At 20 °C and 101.325 kPa, dry air has a density of 1.2041 kg/m3.
     protected: double rho;
 
-    /// \brief effective planeform surface area
-    protected: double area;
-
     /// \brief angle of sweep
     protected: double sweep;
 
@@ -120,16 +126,6 @@ namespace gazebo
 
     /// \brief angle of attack
     protected: double alpha;
-
-    /// \brief center of pressure in link local coordinates
-    protected: math::Vector3 cp;
-
-    /// \brief forward flight direction in link local coordinates
-    protected: math::Vector3 forward;
-
-    /// \brief A vector in the lift/drag plane, anything orthogonal to it
-    /// is considered wing sweep.
-    protected: math::Vector3 upward;
 
     /// \brief Smooth velocity
     protected: math::Vector3 velSmooth;

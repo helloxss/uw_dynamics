@@ -31,10 +31,6 @@ GZ_REGISTER_MODEL_PLUGIN(LiftDragPlugin)
 
 LiftDragPlugin::LiftDragPlugin() : cla(1.0), cda(0.01), cma(0.01), rho(1.2041), fluidDensity(999.1026)
 {
-	this->cp = math::Vector3(0, 0, 0);
-	this->forward = math::Vector3(1, 0, 0);
-	this->upward = math::Vector3(0, 0, 1);
-	this->area = 1.0;
 	this->alpha0 = 0.0;
 	this->alphaStall = 0.5*M_PI;
 	this->claStall = 0.0;
@@ -76,16 +72,8 @@ void LiftDragPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 		this->cdaStall = _sdf->Get<double>("cda_stall");
 	if (_sdf->HasElement("cma_stall"))
 		this->cmaStall = _sdf->Get<double>("cma_stall");
-	if (_sdf->HasElement("cp"))
-		this->cp = _sdf->Get<math::Vector3>("cp");
-	if (_sdf->HasElement("area"))
-		this->area = _sdf->Get<double>("area");
 	if (_sdf->HasElement("fluid_density"))
 		this->rho = _sdf->Get<double>("fluid_density");
-	if (_sdf->HasElement("forward"))
-		this->forward = _sdf->Get<math::Vector3>("forward");
-	if (_sdf->HasElement("upward"))
-		this->upward = _sdf->Get<math::Vector3>("upward");
 
 	//##################################################################//
 
@@ -106,10 +94,25 @@ void LiftDragPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 			for (auto joint : link->GetChildJoints())
 			{
 				ROS_INFO_NAMED("joint retrieved","joint retrieved");
-				math::Vector3 axis = math::Vector3::Zero;
-				axis = joint->GetLocalAxis(0);
-				ROS_INFO_NAMED("vector","x comp: %0.7lf, %0.7lf, %0.7lf",axis.x,axis.y,axis.z); 
-				ROS_INFO_NAMED("size","size of: %0.7lf, %0.7lf, %0.7lf",size.x,size.y,size.z);
+				math::Vector3 local_axis = math::Vector3::Zero;
+				double a[3];
+				local_axis = joint->GetLocalAxis(0);
+				for(int i=0;i<3;i++)
+				{
+					if(abs(local_axis[i])>0.0)
+						if(i<2)
+							a[i+1]=local_axis[i];
+						else
+							a[0]=local_axis[i];
+				}
+				this->volPropsMap[id].upward = math::Vector3(a[0], a[1], a[2]);
+				this->volPropsMap[id].forward = local_axis.Cross(this->volPropsMap[id].upward);
+				this->volPropsMap[id].area = size.Dot(local_axis) * size.Dot(this->volPropsMap[id].forward);
+				ROS_INFO_NAMED("length", "area: %0.7lf",this->volPropsMap[id].area);
+				ROS_INFO_NAMED("loc", "local %0.7lf, %0.7lf, %0.7lf",local_axis.x,local_axis.y,local_axis.z);
+				ROS_INFO_NAMED("up", "up %0.7lf, %0.7lf, %0.7lf",this->volPropsMap[id].upward.x,this->volPropsMap[id].upward.y,this->volPropsMap[id].upward.z);
+				ROS_INFO_NAMED("forw", "forw %0.7lf, %0.7lf, %0.7lf",this->volPropsMap[id].forward.x,this->volPropsMap[id].forward.y,this->volPropsMap[id].forward.z);
+
 			}
 
 			for (auto collision : link->GetCollisions())
@@ -164,8 +167,8 @@ void LiftDragPlugin::OnUpdate()
 
 		math::Pose pose = link->GetWorldPose();
 		// rotate forward and upward vectors into inertial frame
-		math::Vector3 forwardI = pose.rot.RotateVector(this->forward);
-		math::Vector3 upwardI = pose.rot.RotateVector(this->upward);
+		math::Vector3 forwardI = pose.rot.RotateVector(volumeProperties.forward);
+		math::Vector3 upwardI = pose.rot.RotateVector(volumeProperties.upward);
 		// ldNormal vector to lift-drag-plane described in inertial frame
 		math::Vector3 ldNormal = forwardI.Cross(upwardI).Normalize();
 		// check sweep (angle between vel and lift-drag-plane)
@@ -236,7 +239,7 @@ void LiftDragPlugin::OnUpdate()
 			cl = this->cla * this->alpha * cosSweepAngle2;
 
 		// compute lift force at cp
-		math::Vector3 lift = cl * q * this->area * liftDirection;
+		math::Vector3 lift = cl * q * volumeProperties.area * liftDirection;
 		// compute cd at cp, check for stall, correct for sweep
 		double cd;
 
@@ -254,7 +257,7 @@ void LiftDragPlugin::OnUpdate()
 		// make sure drag is positive
 		cd = fabs(cd);
 		// drag at cp
-		math::Vector3 drag = cd * q * this->area * dragDirection;
+		math::Vector3 drag = cd * q * volumeProperties.area * dragDirection;
 		// compute cm at cp, check for stall, correct for sweep
 		double cm;
 		if (this->alpha > this->alphaStall)
@@ -276,7 +279,7 @@ void LiftDragPlugin::OnUpdate()
 		cm = 0.0;
 
 		// compute moment (torque) at cp
-		math::Vector3 moment = cm * q * this->area * momentDirection;
+		math::Vector3 moment = cm * q * volumeProperties.area * momentDirection;
 
 		// moment arm from cg to cp in inertial plane
 		math::Vector3 momentArm = pose.rot.RotateVector(
