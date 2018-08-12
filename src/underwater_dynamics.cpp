@@ -94,14 +94,23 @@ void LiftDragPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 	for (auto link : this->model->GetLinks())
 	{
 		int id = link->GetId();
+		ROS_INFO_NAMED("Hello", "this is link :%d", id);
 		if (this->volPropsMap.find(id) == this->volPropsMap.end())
 		{
 			double volumeSum = 0;
 			ignition::math::Vector3d weightedPosSum = ignition::math::Vector3d::Zero;
-			double projectedArea;
+			math::Vector3 size = math::Vector3::Zero;
 			math::Vector3 weightedPosSumCOP = math::Vector3::Zero;
-			projectedArea = link->GetBoundingBox().GetXLength();
-			ROS_INFO_NAMED("projectedArea","%0.7lf",projectedArea);
+			size = link->GetBoundingBox().GetSize();
+
+			for (auto joint : link->GetChildJoints())
+			{
+				ROS_INFO_NAMED("joint retrieved","joint retrieved");
+				math::Vector3 axis = math::Vector3::Zero;
+				axis = joint->GetLocalAxis(0);
+				ROS_INFO_NAMED("vector","x comp: %0.7lf, %0.7lf, %0.7lf",axis.x,axis.y,axis.z); 
+				ROS_INFO_NAMED("size","size of: %0.7lf, %0.7lf, %0.7lf",size.x,size.y,size.z);
+			}
 
 			for (auto collision : link->GetCollisions())
 			{
