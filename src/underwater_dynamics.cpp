@@ -29,13 +29,8 @@ GZ_REGISTER_MODEL_PLUGIN(LiftDragPlugin)
 
 //*********************** Default values ******************************//
 
-LiftDragPlugin::LiftDragPlugin() : cla(1.0), cda(0.01), cma(0.01), rho(1.2041), fluidDensity(999.1026)
+LiftDragPlugin::LiftDragPlugin() : rho(1.2041), fluidDensity(999.1026)
 {
-	this->alpha0 = 0.0;
-	this->alphaStall = 0.5*M_PI;
-	this->claStall = 0.0;
-	this->cdaStall = 1.0;
-	this->cmaStall = 0.0;
 }
 
 //##################################################################//
@@ -56,29 +51,14 @@ void LiftDragPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 	GZ_ASSERT(_sdf, "LiftDragPlugin _sdf pointer is NULL");
 
 	//*********************** Load values from SDF ******************************//
-	if (_sdf->HasElement("a0"))
-		this->alpha0 = _sdf->Get<double>("a0");
-	if (_sdf->HasElement("cla"))
-		this->cla = _sdf->Get<double>("cla");
-	if (_sdf->HasElement("cda"))
-		this->cda = _sdf->Get<double>("cda");
-	if (_sdf->HasElement("cma"))
-		this->cma = _sdf->Get<double>("cma");
-	if (_sdf->HasElement("alpha_stall"))
-		this->alphaStall = _sdf->Get<double>("alpha_stall");
-	if (_sdf->HasElement("cla_stall"))
-		this->claStall = _sdf->Get<double>("cla_stall");
-	if (_sdf->HasElement("cda_stall"))
-		this->cdaStall = _sdf->Get<double>("cda_stall");
-	if (_sdf->HasElement("cma_stall"))
-		this->cmaStall = _sdf->Get<double>("cma_stall");
+
 	if (_sdf->HasElement("fluid_density"))
 		this->rho = _sdf->Get<double>("fluid_density");
 
 	//##################################################################//
 
 	//*********************** Compute values for all links ******************************//
-
+	int i = 0;
 	for (auto link : this->model->GetLinks())
 	{
 		int id = link->GetId();
@@ -91,28 +71,76 @@ void LiftDragPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 			math::Vector3 weightedPosSumCOP = math::Vector3::Zero;
 			size = link->GetBoundingBox().GetSize();
 
-			for (auto joint : link->GetChildJoints())
+			if(i == this->model->GetJointCount())
 			{
-				ROS_INFO_NAMED("joint retrieved","joint retrieved");
-				math::Vector3 local_axis = math::Vector3::Zero;
-				double a[3];
-				local_axis = joint->GetLocalAxis(0);
-				for(int i=0;i<3;i++)
+				for (auto joint : link->GetParentJoints())
 				{
-					if(abs(local_axis[i])>0.0)
-						if(i<2)
-							a[i+1]=local_axis[i];
-						else
-							a[0]=local_axis[i];
-				}
-				this->volPropsMap[id].upward = math::Vector3(a[0], a[1], a[2]);
-				this->volPropsMap[id].forward = local_axis.Cross(this->volPropsMap[id].upward);
-				this->volPropsMap[id].area = size.Dot(local_axis) * size.Dot(this->volPropsMap[id].forward);
-				ROS_INFO_NAMED("length", "area: %0.7lf",this->volPropsMap[id].area);
-				ROS_INFO_NAMED("loc", "local %0.7lf, %0.7lf, %0.7lf",local_axis.x,local_axis.y,local_axis.z);
-				ROS_INFO_NAMED("up", "up %0.7lf, %0.7lf, %0.7lf",this->volPropsMap[id].upward.x,this->volPropsMap[id].upward.y,this->volPropsMap[id].upward.z);
-				ROS_INFO_NAMED("forw", "forw %0.7lf, %0.7lf, %0.7lf",this->volPropsMap[id].forward.x,this->volPropsMap[id].forward.y,this->volPropsMap[id].forward.z);
+					int Jid = joint->GetChild()->GetId();
+					ROS_INFO_NAMED("joint retrieved","joint retrieved: %d", Jid);
+					math::Vector3 local_axis = math::Vector3::Zero;
+					math::Vector3 new_local_axis = math::Vector3::Zero;
+					double a[3]={0.0, 0.0, 0.0}, b[3]={0.0, 0.0, 0.0};
+					local_axis = joint->GetLocalAxis(0);
+					for(int i=0;i<3;i++)
+					{
+						if(abs(local_axis[i])>0.0)
+							if(i<2)
+								a[i+1]=1.0;
+							else
+								a[i-1]=1.0;
+					}
+					new_local_axis = math::Vector3(a[0], a[1], a[2]);
 
+					for(int i=0;i<3;i++)
+					{
+						if(abs(new_local_axis[i])>0.0)
+							if(i<2)
+								b[i+1]=1.0;
+							else
+								b[i-1]=1.0;
+					}
+					this->volPropsMap[id].upward = math::Vector3(b[0], b[1], b[2]);
+					this->volPropsMap[id].forward = new_local_axis;
+					this->volPropsMap[id].area = size.Dot(new_local_axis) * size.Dot(new_local_axis.Cross(this->volPropsMap[id].upward).GetAbs());
+					ROS_INFO_NAMED("length", "length: %0.7lf",size[0]);
+					ROS_INFO_NAMED("length", "breadth: %0.7lf",size[1]);
+					ROS_INFO_NAMED("length", "height: %0.7lf",size[2]);
+					ROS_INFO_NAMED("length", "area: %0.7lf",this->volPropsMap[id].area);
+					ROS_INFO_NAMED("loc", "local %0.7lf, %0.7lf, %0.7lf",new_local_axis.x,new_local_axis.y,new_local_axis.z);
+					ROS_INFO_NAMED("up", "up %0.7lf, %0.7lf, %0.7lf",this->volPropsMap[id].upward.x,this->volPropsMap[id].upward.y,this->volPropsMap[id].upward.z);
+					ROS_INFO_NAMED("forw", "forw %0.7lf, %0.7lf, %0.7lf",this->volPropsMap[id].forward.x,this->volPropsMap[id].forward.y,this->volPropsMap[id].forward.z);
+					ROS_INFO_NAMED("Hello", "***********%d************",i);
+				}
+			}
+			else
+			{
+				for (auto joint : link->GetChildJoints())
+				{
+					int Jid = joint->GetParent()->GetId();
+					ROS_INFO_NAMED("joint retrieved","joint retrieved: %d", Jid);
+					math::Vector3 local_axis = math::Vector3::Zero;
+					double a[3]={0.0, 0.0, 0.0};
+					local_axis = joint->GetLocalAxis(0);
+					for(int i=0;i<3;i++)
+					{
+						if(abs(local_axis[i])>0.0)
+							if(i<2)
+								a[i+1]=1.0;
+							else
+								a[i-1]=1.0;
+					}
+					this->volPropsMap[id].upward = math::Vector3(a[0], a[1], a[2]);
+					this->volPropsMap[id].forward = local_axis;
+					this->volPropsMap[id].area = size.Dot(local_axis) * size.Dot(local_axis.Cross(this->volPropsMap[id].upward).GetAbs());
+					ROS_INFO_NAMED("length", "length: %0.7lf",size[0]);
+					ROS_INFO_NAMED("length", "breadth: %0.7lf",size[1]);
+					ROS_INFO_NAMED("length", "height: %0.7lf",size[2]);
+					ROS_INFO_NAMED("length", "area: %0.7lf",this->volPropsMap[id].area);
+					ROS_INFO_NAMED("loc", "local %0.7lf, %0.7lf, %0.7lf",local_axis.x,local_axis.y,local_axis.z);
+					ROS_INFO_NAMED("up", "up %0.7lf, %0.7lf, %0.7lf",this->volPropsMap[id].upward.x,this->volPropsMap[id].upward.y,this->volPropsMap[id].upward.z);
+					ROS_INFO_NAMED("forw", "forw %0.7lf, %0.7lf, %0.7lf",this->volPropsMap[id].forward.x,this->volPropsMap[id].forward.y,this->volPropsMap[id].forward.z);
+					ROS_INFO_NAMED("Hello", "***********%d************",i);
+				}				
 			}
 
 			for (auto collision : link->GetCollisions())
@@ -124,9 +152,21 @@ void LiftDragPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 			}
 
 			this->volPropsMap[id].cov = weightedPosSum/volumeSum - link->GetWorldPose().pos.Ign();
-			this->volPropsMap[id].cop = weightedPosSumCOP/volumeSum - link->GetWorldPose().pos;
+			this->volPropsMap[id].cop = math::Vector3(0, 0, 0);
 			this->volPropsMap[id].volume = volumeSum;
+			this->volPropsMap[id].alphaStall = 0.0;
+			this->volPropsMap[id].alpha0 = 0;
+			this->volPropsMap[id].alpha = 0;
+			this->volPropsMap[id].claStall = 0;
+			this->volPropsMap[id].cdaStall = 1.4326647564469914;
+			this->volPropsMap[id].cmaStall = 0;
+			this->volPropsMap[id].cla = 0;
+			this->volPropsMap[id].cda = 1.2535816618911175;
+			this->volPropsMap[id].cma = 0.01;
+			ROS_INFO_NAMED("Hello", "***********************");
+
 		}
+		i++;
 	}
 }
 
@@ -146,6 +186,7 @@ void LiftDragPlugin::Init()
 
 void LiftDragPlugin::OnUpdate()
 {
+	//*********************** Buoyant force ******************************//
 
 	for (auto link : this->model->GetLinks())
 	{
@@ -157,6 +198,8 @@ void LiftDragPlugin::OnUpdate()
 	    ignition::math::Vector3d buoyancyLinkFrame = linkFrame.Rot().Inverse().RotateVector(buoyancy);
 	  	link->AddLinkForce(buoyancyLinkFrame, volumeProperties.cov);
 	}
+
+	//###########################################################//
 
 	for (auto link : this->model->GetLinks())
 	{
@@ -175,10 +218,10 @@ void LiftDragPlugin::OnUpdate()
 		double sinSweepAngle = ldNormal.Dot(vel) / vel.GetLength();
 		// get cos from trig identity
 		double cosSweepAngle2 = (1.0 - sinSweepAngle * sinSweepAngle);
-		this->sweep = asin(sinSweepAngle);
+		volumeProperties.sweep = asin(sinSweepAngle);
 		// truncate sweep to within +/-90 deg
-		while (fabs(this->sweep) > 0.5 * M_PI)
-		this->sweep = this->sweep > 0 ? this->sweep - M_PI : this->sweep + M_PI;
+		while (fabs(volumeProperties.sweep) > 0.5 * M_PI)
+		volumeProperties.sweep = volumeProperties.sweep > 0 ? volumeProperties.sweep - M_PI : volumeProperties.sweep + M_PI;
 
 		// angle of attack is the angle between vel projected into lift-drag plane and forward vector
 		// projected = ldNormal Xcross ( vector Xcross ldNormal)
@@ -208,14 +251,14 @@ void LiftDragPlugin::OnUpdate()
 
 		// double sinAlpha = sqrt(1.0 - cosAlpha * cosAlpha);
 		if (alphaSign > 0.0)
-		this->alpha = this->alpha0 + acos(cosAlpha);
+		volumeProperties.alpha = volumeProperties.alpha0 + acos(cosAlpha);
 		else
-		this->alpha = this->alpha0 - acos(cosAlpha);
+		volumeProperties.alpha = volumeProperties.alpha0 - acos(cosAlpha);
 
 		// normalize to within +/-90 deg
-		while (fabs(this->alpha) > 0.5 * M_PI)
-		this->alpha = this->alpha > 0 ? this->alpha - M_PI
-		                              : this->alpha + M_PI;
+		while (fabs(volumeProperties.alpha) > 0.5 * M_PI)
+		volumeProperties.alpha = volumeProperties.alpha > 0 ? volumeProperties.alpha - M_PI
+		                              : volumeProperties.alpha + M_PI;
 
 		// compute dynamic pressure
 		double speedInLDPlane = velInLDPlane.GetLength();
@@ -223,36 +266,36 @@ void LiftDragPlugin::OnUpdate()
 
 		// compute cl at cp, check for stall, correct for sweep
 		double cl;
-		if (this->alpha > this->alphaStall)
+		if (volumeProperties.alpha > volumeProperties.alphaStall)
 		{
-			cl = (this->cla * this->alphaStall + this->claStall * (this->alpha - this->alphaStall)) * cosSweepAngle2;
+			cl = (volumeProperties.cla * volumeProperties.alphaStall + volumeProperties.claStall * (volumeProperties.alpha - volumeProperties.alphaStall)) * cosSweepAngle2;
 			// make sure cl is still great than 0
 			cl = std::max(0.0, cl);
 		}
-		else if (this->alpha < -this->alphaStall)
+		else if (volumeProperties.alpha < -volumeProperties.alphaStall)
 		{
-			cl = (-this->cla * this->alphaStall + this->claStall * (this->alpha + this->alphaStall)) * cosSweepAngle2;
+			cl = (-volumeProperties.cla * volumeProperties.alphaStall + volumeProperties.claStall * (volumeProperties.alpha + volumeProperties.alphaStall)) * cosSweepAngle2;
 			// make sure cl is still less than 0
 			cl = std::min(0.0, cl);
 		}
 		else
-			cl = this->cla * this->alpha * cosSweepAngle2;
+			cl = volumeProperties.cla * volumeProperties.alpha * cosSweepAngle2;
 
 		// compute lift force at cp
 		math::Vector3 lift = cl * q * volumeProperties.area * liftDirection;
 		// compute cd at cp, check for stall, correct for sweep
 		double cd;
 
-		if (this->alpha > this->alphaStall)
+		if (volumeProperties.alpha > volumeProperties.alphaStall)
 		{
-			cd = (this->cda * this->alphaStall + this->cdaStall * (this->alpha - this->alphaStall)) * cosSweepAngle2;
+			cd = (volumeProperties.cda * volumeProperties.alphaStall + volumeProperties.cdaStall * (volumeProperties.alpha - volumeProperties.alphaStall)) * cosSweepAngle2;
 		}
-		else if (this->alpha < -this->alphaStall)
+		else if (volumeProperties.alpha < -volumeProperties.alphaStall)
 		{
-			cd = (-this->cda * this->alphaStall + this->cdaStall * (this->alpha + this->alphaStall)) * cosSweepAngle2;
+			cd = (-volumeProperties.cda * volumeProperties.alphaStall + volumeProperties.cdaStall * (volumeProperties.alpha + volumeProperties.alphaStall)) * cosSweepAngle2;
 		}
 		else
-			cd = (this->cda * this->alpha) * cosSweepAngle2;
+			cd = (volumeProperties.cda * volumeProperties.alpha) * cosSweepAngle2;
 
 		// make sure drag is positive
 		cd = fabs(cd);
@@ -260,20 +303,20 @@ void LiftDragPlugin::OnUpdate()
 		math::Vector3 drag = cd * q * volumeProperties.area * dragDirection;
 		// compute cm at cp, check for stall, correct for sweep
 		double cm;
-		if (this->alpha > this->alphaStall)
+		if (volumeProperties.alpha > volumeProperties.alphaStall)
 		{
-			cm = (this->cma * this->alphaStall + this->cmaStall * (this->alpha - this->alphaStall)) * cosSweepAngle2;
+			cm = (volumeProperties.cma * volumeProperties.alphaStall + volumeProperties.cmaStall * (volumeProperties.alpha - volumeProperties.alphaStall)) * cosSweepAngle2;
 			// make sure cm is still great than 0
 			cm = std::max(0.0, cm);
 		}
-		else if (this->alpha < -this->alphaStall)
+		else if (volumeProperties.alpha < -volumeProperties.alphaStall)
 		{
-			cm = (-this->cma * this->alphaStall + this->cmaStall * (this->alpha + this->alphaStall)) * cosSweepAngle2;
+			cm = (-volumeProperties.cma * volumeProperties.alphaStall + volumeProperties.cmaStall * (volumeProperties.alpha + volumeProperties.alphaStall)) * cosSweepAngle2;
 			// make sure cm is still less than 0
 			cm = std::min(0.0, cm);
 		}
 		else
-			cm = this->cma * this->alpha * cosSweepAngle2;
+			cm = volumeProperties.cma * volumeProperties.alpha * cosSweepAngle2;
 
 		// reset cm to zero, as cm needs testing
 		cm = 0.0;
@@ -303,10 +346,10 @@ void LiftDragPlugin::OnUpdate()
 			gzerr << "upward (inertial): " << upwardI << "\n";
 			gzerr << "lift dir (inertial): " << liftDirection << "\n";
 			gzerr << "LD Normal: " << ldNormal << "\n";
-			gzerr << "sweep: " << this->sweep << "\n";
-			gzerr << "alpha: " << this->alpha << "\n";
+			gzerr << "sweep: " << volumeProperties.sweep << "\n";
+			gzerr << "alpha: " << volumeProperties.alpha << "\n";
 			gzerr << "lift: " << lift << "\n";
-			gzerr << "drag: " << drag << " cd: "<< cd << " cda: " << this->cda << "\n";
+			gzerr << "drag: " << drag << " cd: "<< cd << " cda: " << volumeProperties.cda << "\n";
 			gzerr << "moment: " << moment << "\n";
 			gzerr << "cp momentArm: " << momentArm << "\n";
 			gzerr << "force: " << force << "\n";

@@ -51,6 +51,42 @@ namespace gazebo
 
     /// \brief effective planeform surface area
     public: double area;
+
+    /// \brief angle of sweep
+    public: double sweep;
+
+    /// \brief angle of attach when airfoil stalls
+    public: double alphaStall;
+
+    /// \brief initial angle of attack
+    public: double alpha0;
+
+    /// \brief angle of attack
+    public: double alpha;
+
+    /// \brief Cl-alpha rate after stall
+    public: double claStall;
+
+    /// \brief Cd-alpha rate after stall
+    public: double cdaStall;
+
+    /// \brief Cm-alpha rate after stall
+    public: double cmaStall;
+
+    /// \brief Coefficient of Lift / alpha slope.
+    /// Lift = C_L * q * S
+    /// where q (dynamic pressure) = 0.5 * rho * v^2
+    public: double cla;
+
+    /// \brief Coefficient of Drag / alpha slope.
+    /// Drag = C_D * q * S
+    /// where q (dynamic pressure) = 0.5 * rho * v^2
+    public: double cda;
+
+    /// \brief Coefficient of Moment / alpha slope.
+    /// Moment = C_M * q * S
+    /// where q (dynamic pressure) = 0.5 * rho * v^2
+    public: double cma;
   };
 
   /// \brief A plugin that simulates lift and drag.
@@ -83,33 +119,6 @@ namespace gazebo
     /// \brief Name of model containing plugin.
     protected: std::string modelName;
 
-    /// \brief Coefficient of Lift / alpha slope.
-    /// Lift = C_L * q * S
-    /// where q (dynamic pressure) = 0.5 * rho * v^2
-    protected: double cla;
-
-    /// \brief Coefficient of Drag / alpha slope.
-    /// Drag = C_D * q * S
-    /// where q (dynamic pressure) = 0.5 * rho * v^2
-    protected: double cda;
-
-    /// \brief Coefficient of Moment / alpha slope.
-    /// Moment = C_M * q * S
-    /// where q (dynamic pressure) = 0.5 * rho * v^2
-    protected: double cma;
-
-    /// \brief angle of attach when airfoil stalls
-    protected: double alphaStall;
-
-    /// \brief Cl-alpha rate after stall
-    protected: double claStall;
-
-    /// \brief Cd-alpha rate after stall
-    protected: double cdaStall;
-
-    /// \brief Cm-alpha rate after stall
-    protected: double cmaStall;
-
     /// \brief: \TODO: make a stall velocity curve
     protected: double velocityStall;
 
@@ -117,15 +126,6 @@ namespace gazebo
     /// at 25 deg C it's about 1.1839 kg/m^3
     /// At 20 °C and 101.325 kPa, dry air has a density of 1.2041 kg/m3.
     protected: double rho;
-
-    /// \brief angle of sweep
-    protected: double sweep;
-
-    /// \brief initial angle of attack
-    protected: double alpha0;
-
-    /// \brief angle of attack
-    protected: double alpha;
 
     /// \brief Smooth velocity
     protected: math::Vector3 velSmooth;
