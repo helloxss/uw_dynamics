@@ -67,9 +67,8 @@ void LiftDragPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 		{
 			double volumeSum = 0;
 			ignition::math::Vector3d weightedPosSum = ignition::math::Vector3d::Zero;
-			math::Vector3 size = math::Vector3::Zero;
 			math::Vector3 weightedPosSumCOP = math::Vector3::Zero;
-			size = link->GetBoundingBox().GetSize();
+			this->volPropsMap[id].size = link->GetCollisionBoundingBox().GetSize();
 
 			if(i == this->model->GetJointCount())
 			{
@@ -99,17 +98,20 @@ void LiftDragPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 							else
 								b[i-1]=1.0;
 					}
-					this->volPropsMap[id].upward = math::Vector3(b[0], b[1], b[2]);
-					this->volPropsMap[id].forward = new_local_axis;
-					this->volPropsMap[id].area = size.Dot(new_local_axis) * size.Dot(new_local_axis.Cross(this->volPropsMap[id].upward).GetAbs());
-					ROS_INFO_NAMED("length", "length: %0.7lf",size[0]);
-					ROS_INFO_NAMED("length", "breadth: %0.7lf",size[1]);
-					ROS_INFO_NAMED("length", "height: %0.7lf",size[2]);
+
+					this->volPropsMap[id].upward = math::Vector3(a[0], a[1], a[2]);
+					this->volPropsMap[id].forward = local_axis.Cross(this->volPropsMap[id].upward).GetAbs();
+					this->volPropsMap[id].area = this->volPropsMap[id].size.Dot(new_local_axis) * this->volPropsMap[id].size.Dot(new_local_axis.Cross(this->volPropsMap[id].upward).GetAbs());
+					/*
+					ROS_INFO_NAMED("length", "length: %0.7lf",this->volPropsMap[id].size[0]);
+					ROS_INFO_NAMED("length", "breadth: %0.7lf",this->volPropsMap[id].size[1]);
+					ROS_INFO_NAMED("length", "height: %0.7lf",this->volPropsMap[id].size[2]);
 					ROS_INFO_NAMED("length", "area: %0.7lf",this->volPropsMap[id].area);
 					ROS_INFO_NAMED("loc", "local %0.7lf, %0.7lf, %0.7lf",new_local_axis.x,new_local_axis.y,new_local_axis.z);
 					ROS_INFO_NAMED("up", "up %0.7lf, %0.7lf, %0.7lf",this->volPropsMap[id].upward.x,this->volPropsMap[id].upward.y,this->volPropsMap[id].upward.z);
 					ROS_INFO_NAMED("forw", "forw %0.7lf, %0.7lf, %0.7lf",this->volPropsMap[id].forward.x,this->volPropsMap[id].forward.y,this->volPropsMap[id].forward.z);
 					ROS_INFO_NAMED("Hello", "***********%d************",i);
+					*/
 				}
 			}
 			else
@@ -130,16 +132,18 @@ void LiftDragPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 								a[i-1]=1.0;
 					}
 					this->volPropsMap[id].upward = math::Vector3(a[0], a[1], a[2]);
-					this->volPropsMap[id].forward = local_axis;
-					this->volPropsMap[id].area = size.Dot(local_axis) * size.Dot(local_axis.Cross(this->volPropsMap[id].upward).GetAbs());
-					ROS_INFO_NAMED("length", "length: %0.7lf",size[0]);
-					ROS_INFO_NAMED("length", "breadth: %0.7lf",size[1]);
-					ROS_INFO_NAMED("length", "height: %0.7lf",size[2]);
+					this->volPropsMap[id].forward = local_axis.Cross(this->volPropsMap[id].upward).GetAbs();
+					this->volPropsMap[id].area = this->volPropsMap[id].size.Dot(local_axis) * this->volPropsMap[id].size.Dot(local_axis.Cross(this->volPropsMap[id].upward).GetAbs());
+					/*
+					ROS_INFO_NAMED("length", "length: %0.7lf",this->volPropsMap[id].size[0]);
+					ROS_INFO_NAMED("length", "breadth: %0.7lf",this->volPropsMap[id].size[1]);
+					ROS_INFO_NAMED("length", "height: %0.7lf",this->volPropsMap[id].size[2]);
 					ROS_INFO_NAMED("length", "area: %0.7lf",this->volPropsMap[id].area);
 					ROS_INFO_NAMED("loc", "local %0.7lf, %0.7lf, %0.7lf",local_axis.x,local_axis.y,local_axis.z);
 					ROS_INFO_NAMED("up", "up %0.7lf, %0.7lf, %0.7lf",this->volPropsMap[id].upward.x,this->volPropsMap[id].upward.y,this->volPropsMap[id].upward.z);
 					ROS_INFO_NAMED("forw", "forw %0.7lf, %0.7lf, %0.7lf",this->volPropsMap[id].forward.x,this->volPropsMap[id].forward.y,this->volPropsMap[id].forward.z);
 					ROS_INFO_NAMED("Hello", "***********%d************",i);
+					*/
 				}				
 			}
 
@@ -211,11 +215,19 @@ void LiftDragPlugin::OnUpdate()
 		math::Pose pose = link->GetWorldPose();
 		// rotate forward and upward vectors into inertial frame
 		math::Vector3 forwardI = pose.rot.RotateVector(volumeProperties.forward);
+		//ROS_INFO_NAMED("forward", "Forward: x: %0.7lf, y: %0.7lf, z: %0.7lf", volumeProperties.forward[0], volumeProperties.forward[1], volumeProperties.forward[2]);
+		//ROS_INFO_NAMED("forward", "ForwardINV: x: %0.7lf, y: %0.7lf, z: %0.7lf", forwardI[0], forwardI[1], forwardI[2]);
+		//ROS_INFO_NAMED("Hello", "***********************");
+
 		math::Vector3 upwardI = pose.rot.RotateVector(volumeProperties.upward);
 		// ldNormal vector to lift-drag-plane described in inertial frame
 		math::Vector3 ldNormal = forwardI.Cross(upwardI).Normalize();
+		//ROS_INFO_NAMED("forward", "Normal: x: %0.7lf, y: %0.7lf, z: %0.7lf", ldNormal[0], ldNormal[1], ldNormal[2]);
+		//ROS_INFO_NAMED("forward", "Velocity: x: %0.7lf, y: %0.7lf, z: %0.7lf", vel[0], vel[1], vel[2]);
+
 		// check sweep (angle between vel and lift-drag-plane)
 		double sinSweepAngle = ldNormal.Dot(vel) / vel.GetLength();
+		//ROS_INFO_NAMED("angle","angle: %0.7lf", sinSweepAngle);
 		// get cos from trig identity
 		double cosSweepAngle2 = (1.0 - sinSweepAngle * sinSweepAngle);
 		volumeProperties.sweep = asin(sinSweepAngle);
@@ -227,6 +239,8 @@ void LiftDragPlugin::OnUpdate()
 		// projected = ldNormal Xcross ( vector Xcross ldNormal)
 		// so, velocity in lift-drag plane (expressed in inertial frame) is:
 		math::Vector3 velInLDPlane = ldNormal.Cross(vel.Cross(ldNormal));
+		//ROS_INFO_NAMED("forward", "velInLDPlane: x: %0.7lf, y: %0.7lf, z: %0.7lf", velInLDPlane[0], velInLDPlane[1], velInLDPlane[2]);
+
 		// get direction of drag
 		math::Vector3 dragDirection = -velInLDPlane;
 		dragDirection.Normalize();
@@ -234,6 +248,8 @@ void LiftDragPlugin::OnUpdate()
 		// get direction of lift
 		math::Vector3 liftDirection = ldNormal.Cross(velInLDPlane);
 		liftDirection.Normalize();
+		//ROS_INFO_NAMED("forward", "lift: x: %0.7lf, y: %0.7lf, z: %0.7lf", dragDirection[0], dragDirection[1], dragDirection[2]);
+
 
 		// get direction of moment
 		math::Vector3 momentDirection = ldNormal;
@@ -359,6 +375,7 @@ void LiftDragPlugin::OnUpdate()
 		link->AddForceAtRelativePosition(force, volumeProperties.cop);
 		link->AddTorque(torque);
 	}
+	//ROS_INFO_NAMED("Hello", "***********************");
 }
 
 //##################################################################//

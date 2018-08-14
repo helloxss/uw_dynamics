@@ -46,6 +46,8 @@ namespace gazebo
     /// is considered wing sweep.
     public: math::Vector3 upward;
 
+    public:math::Vector3 size;
+
     /// \brief Volume of this link.
     public: double volume;
 
