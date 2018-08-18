@@ -1,19 +1,3 @@
-/*
- * Copyright (C) 2014 Open Source Robotics Foundation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
-*/
 #ifndef _GAZEBO_UNDERWATER_DYNAMICS_HH_
 #define _GAZEBO_UNDERWATER_DYNAMICS_HH_
 
@@ -54,36 +38,9 @@ namespace gazebo
     /// \brief effective planeform surface area
     public: double area;
 
-    /// \brief angle of sweep
-    public: double sweep;
-
-    /// \brief angle of attach when airfoil stalls
-    public: double alphaStall;
-
-    /// \brief initial angle of attack
-    public: double alpha0;
-
-    /// \brief angle of attack
-    public: double alpha;
-
-    /// \brief Cd-alpha rate after stall
-    public: double cdaStall;
-
-    /// \brief Cm-alpha rate after stall
-    public: double cmaStall;
-
-    /// \brief Coefficient of Drag / alpha slope.
-    /// Drag = C_D * q * S
-    /// where q (dynamic pressure) = 0.5 * rho * v^2
-    public: double cda;
-
-    /// \brief Coefficient of Moment / alpha slope.
-    /// Moment = C_M * q * S
-    /// where q (dynamic pressure) = 0.5 * rho * v^2
-    public: double cma;
-
     public: double Cdrift;
     public: double Clift;
+    public: double CMass;
   };
 
   /// \brief A plugin that simulates lift and drag.

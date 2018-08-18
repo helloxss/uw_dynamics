@@ -1,20 +1,3 @@
-/*
- * Copyright (C) 2014 Open Source Robotics Foundation
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- *
-*/
-
 #include <algorithm>
 #include <string>
 #include "gazebo/common/Assert.hh"
@@ -158,17 +141,9 @@ void LiftDragPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 			this->volPropsMap[id].cov = weightedPosSum/volumeSum - link->GetWorldPose().pos.Ign();
 			this->volPropsMap[id].cop = math::Vector3(0, 0, 0);
 			this->volPropsMap[id].volume = volumeSum;
-			this->volPropsMap[id].alphaStall = 0.0;
-			this->volPropsMap[id].alpha0 = 0;
-			this->volPropsMap[id].alpha = 0;
-			this->volPropsMap[id].cdaStall = 1.4326647564469914;
-			this->volPropsMap[id].cmaStall = 0;
-			this->volPropsMap[id].cda = 1.2535816618911175;
-			this->volPropsMap[id].cma = 0.01;
-			this->volPropsMap[id].Cdrift = 0.01;
+			this->volPropsMap[id].Cdrift = 1.47;
+			this->volPropsMap[id].CMass = 0.0;
 			this->volPropsMap[id].Clift = 0.0;
-			ROS_INFO_NAMED("Hello", "***********************");
-
 		}
 		i++;
 	}
@@ -225,16 +200,6 @@ void LiftDragPlugin::OnUpdate()
 		//ROS_INFO_NAMED("forward", "Normal: x: %0.7lf, y: %0.7lf, z: %0.7lf", ldNormal[0], ldNormal[1], ldNormal[2]);
 		//ROS_INFO_NAMED("forward", "Velocity: x: %0.7lf, y: %0.7lf, z: %0.7lf", vel[0], vel[1], vel[2]);
 
-		// check sweep (angle between vel and lift-drag-plane)
-		double sinSweepAngle = ldNormal.Dot(vel) / vel.GetLength();
-		//ROS_INFO_NAMED("angle","angle: %0.7lf", sinSweepAngle);
-		// get cos from trig identity
-		double cosSweepAngle2 = (1.0 - sinSweepAngle * sinSweepAngle);
-		volumeProperties.sweep = asin(sinSweepAngle);
-		// truncate sweep to within +/-90 deg
-		while (fabs(volumeProperties.sweep) > 0.5 * M_PI)
-		volumeProperties.sweep = volumeProperties.sweep > 0 ? volumeProperties.sweep - M_PI : volumeProperties.sweep + M_PI;
-
 		// angle of attack is the angle between vel projected into lift-drag plane and forward vector
 		// projected = ldNormal Xcross ( vector Xcross ldNormal)
 		// so, velocity in lift-drag plane (expressed in inertial frame) is:
@@ -254,72 +219,18 @@ void LiftDragPlugin::OnUpdate()
 		// get direction of moment
 		math::Vector3 momentDirection = ldNormal;
 
-		double cosAlpha = math::clamp(
-		forwardI.Dot(velInLDPlane) /
-		(forwardI.GetLength() * velInLDPlane.GetLength()), -1.0, 1.0);
-
-		// gzerr << "ca " << forwardI.Dot(velInLDPlane) /(forwardI.GetLength() * velInLDPlane.GetLength()) << "\n";
-		// get sign of alpha take upwards component of velocity in lift-drag plane.
-		// if sign == upward, then alpha is negative
-
-		double alphaSign = -upwardI.Dot(velInLDPlane)/
-		(upwardI.GetLength() + velInLDPlane.GetLength());
-
-		// double sinAlpha = sqrt(1.0 - cosAlpha * cosAlpha);
-		if (alphaSign > 0.0)
-		volumeProperties.alpha = volumeProperties.alpha0 + acos(cosAlpha);
-		else
-		volumeProperties.alpha = volumeProperties.alpha0 - acos(cosAlpha);
-
-		// normalize to within +/-90 deg
-		while (fabs(volumeProperties.alpha) > 0.5 * M_PI)
-		volumeProperties.alpha = volumeProperties.alpha > 0 ? volumeProperties.alpha - M_PI
-		                              : volumeProperties.alpha + M_PI;
-
 		// compute dynamic pressure
 		double speedInLDPlane = velInLDPlane.GetLength();
 		double q = 0.5 * this->rho * speedInLDPlane * speedInLDPlane;
-
-		// compute cd at cp, check for stall, correct for sweep
-		double cd;
-
-		if (volumeProperties.alpha > volumeProperties.alphaStall)
-		{
-			cd = (volumeProperties.cda * volumeProperties.alphaStall + volumeProperties.cdaStall * (volumeProperties.alpha - volumeProperties.alphaStall)) * cosSweepAngle2;
-		}
-		else if (volumeProperties.alpha < -volumeProperties.alphaStall)
-		{
-			cd = (-volumeProperties.cda * volumeProperties.alphaStall + volumeProperties.cdaStall * (volumeProperties.alpha + volumeProperties.alphaStall)) * cosSweepAngle2;
-		}
-		else
-			cd = (volumeProperties.cda * volumeProperties.alpha) * cosSweepAngle2;
-
-		// make sure drag is positive
-		cd = fabs(cd);
 		// drag at cp
-		math::Vector3 drag = cd * q * volumeProperties.area * dragDirection;
+		
+		//ROS_INFO_NAMED("angle", "Cdrift: %0.7lf", cd);
+		math::Vector3 lift = volumeProperties.Clift * q * volumeProperties.area * liftDirection;
+		math::Vector3 drag = volumeProperties.Cdrift * q * volumeProperties.area * dragDirection;
 		// compute cm at cp, check for stall, correct for sweep
-		double cm;
-		if (volumeProperties.alpha > volumeProperties.alphaStall)
-		{
-			cm = (volumeProperties.cma * volumeProperties.alphaStall + volumeProperties.cmaStall * (volumeProperties.alpha - volumeProperties.alphaStall)) * cosSweepAngle2;
-			// make sure cm is still great than 0
-			cm = std::max(0.0, cm);
-		}
-		else if (volumeProperties.alpha < -volumeProperties.alphaStall)
-		{
-			cm = (-volumeProperties.cma * volumeProperties.alphaStall + volumeProperties.cmaStall * (volumeProperties.alpha + volumeProperties.alphaStall)) * cosSweepAngle2;
-			// make sure cm is still less than 0
-			cm = std::min(0.0, cm);
-		}
-		else
-			cm = volumeProperties.cma * volumeProperties.alpha * cosSweepAngle2;
-
-		// reset cm to zero, as cm needs testing
-		cm = 0.0;
 
 		// compute moment (torque) at cp
-		math::Vector3 moment = cm * q * volumeProperties.area * momentDirection;
+		math::Vector3 moment = volumeProperties.CMass * q * volumeProperties.area * momentDirection;
 
 		// moment arm from cg to cp in inertial plane
 		math::Vector3 momentArm = pose.rot.RotateVector(
@@ -327,7 +238,7 @@ void LiftDragPlugin::OnUpdate()
 		// gzerr << this->cp << " : " << this->link->GetInertial()->GetCoG() << "\n";
 
 		// force and torque about cg in inertial frame
-		math::Vector3 force = drag;
+		math::Vector3 force = lift + drag;
 		// + moment.Cross(momentArm);
 
 		math::Vector3 torque = moment;
@@ -343,9 +254,6 @@ void LiftDragPlugin::OnUpdate()
 			gzerr << "upward (inertial): " << upwardI << "\n";
 			gzerr << "lift dir (inertial): " << liftDirection << "\n";
 			gzerr << "LD Normal: " << ldNormal << "\n";
-			gzerr << "sweep: " << volumeProperties.sweep << "\n";
-			gzerr << "alpha: " << volumeProperties.alpha << "\n";
-			gzerr << "drag: " << drag << " cd: "<< cd << " cda: " << volumeProperties.cda << "\n";
 			gzerr << "moment: " << moment << "\n";
 			gzerr << "cp momentArm: " << momentArm << "\n";
 			gzerr << "force: " << force << "\n";
