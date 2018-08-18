@@ -161,12 +161,12 @@ void LiftDragPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 			this->volPropsMap[id].alphaStall = 0.0;
 			this->volPropsMap[id].alpha0 = 0;
 			this->volPropsMap[id].alpha = 0;
-			this->volPropsMap[id].claStall = 0;
 			this->volPropsMap[id].cdaStall = 1.4326647564469914;
 			this->volPropsMap[id].cmaStall = 0;
-			this->volPropsMap[id].cla = 0;
 			this->volPropsMap[id].cda = 1.2535816618911175;
 			this->volPropsMap[id].cma = 0.01;
+			this->volPropsMap[id].Cdrift = 0.01;
+			this->volPropsMap[id].Clift = 0.0;
 			ROS_INFO_NAMED("Hello", "***********************");
 
 		}
@@ -280,25 +280,6 @@ void LiftDragPlugin::OnUpdate()
 		double speedInLDPlane = velInLDPlane.GetLength();
 		double q = 0.5 * this->rho * speedInLDPlane * speedInLDPlane;
 
-		// compute cl at cp, check for stall, correct for sweep
-		double cl;
-		if (volumeProperties.alpha > volumeProperties.alphaStall)
-		{
-			cl = (volumeProperties.cla * volumeProperties.alphaStall + volumeProperties.claStall * (volumeProperties.alpha - volumeProperties.alphaStall)) * cosSweepAngle2;
-			// make sure cl is still great than 0
-			cl = std::max(0.0, cl);
-		}
-		else if (volumeProperties.alpha < -volumeProperties.alphaStall)
-		{
-			cl = (-volumeProperties.cla * volumeProperties.alphaStall + volumeProperties.claStall * (volumeProperties.alpha + volumeProperties.alphaStall)) * cosSweepAngle2;
-			// make sure cl is still less than 0
-			cl = std::min(0.0, cl);
-		}
-		else
-			cl = volumeProperties.cla * volumeProperties.alpha * cosSweepAngle2;
-
-		// compute lift force at cp
-		math::Vector3 lift = cl * q * volumeProperties.area * liftDirection;
 		// compute cd at cp, check for stall, correct for sweep
 		double cd;
 
@@ -346,7 +327,7 @@ void LiftDragPlugin::OnUpdate()
 		// gzerr << this->cp << " : " << this->link->GetInertial()->GetCoG() << "\n";
 
 		// force and torque about cg in inertial frame
-		math::Vector3 force = lift + drag;
+		math::Vector3 force = drag;
 		// + moment.Cross(momentArm);
 
 		math::Vector3 torque = moment;
@@ -364,7 +345,6 @@ void LiftDragPlugin::OnUpdate()
 			gzerr << "LD Normal: " << ldNormal << "\n";
 			gzerr << "sweep: " << volumeProperties.sweep << "\n";
 			gzerr << "alpha: " << volumeProperties.alpha << "\n";
-			gzerr << "lift: " << lift << "\n";
 			gzerr << "drag: " << drag << " cd: "<< cd << " cda: " << volumeProperties.cda << "\n";
 			gzerr << "moment: " << moment << "\n";
 			gzerr << "cp momentArm: " << momentArm << "\n";

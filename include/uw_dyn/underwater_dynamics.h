@@ -66,19 +66,11 @@ namespace gazebo
     /// \brief angle of attack
     public: double alpha;
 
-    /// \brief Cl-alpha rate after stall
-    public: double claStall;
-
     /// \brief Cd-alpha rate after stall
     public: double cdaStall;
 
     /// \brief Cm-alpha rate after stall
     public: double cmaStall;
-
-    /// \brief Coefficient of Lift / alpha slope.
-    /// Lift = C_L * q * S
-    /// where q (dynamic pressure) = 0.5 * rho * v^2
-    public: double cla;
 
     /// \brief Coefficient of Drag / alpha slope.
     /// Drag = C_D * q * S
@@ -89,6 +81,9 @@ namespace gazebo
     /// Moment = C_M * q * S
     /// where q (dynamic pressure) = 0.5 * rho * v^2
     public: double cma;
+
+    public: double Cdrift;
+    public: double Clift;
   };
 
   /// \brief A plugin that simulates lift and drag.
