@@ -8,30 +8,29 @@
 
 using namespace gazebo;
 
-GZ_REGISTER_MODEL_PLUGIN(LiftDragPlugin)
+GZ_REGISTER_MODEL_PLUGIN(UWDynamicsPlugin)
 
 //*********************** Default values ******************************//
 
-LiftDragPlugin::LiftDragPlugin() : rho(1.2041), fluidDensity(999.1026)
-{
-}
+UWDynamicsPlugin::UWDynamicsPlugin() : rho(999.1026)
+{}
 
 //##################################################################//
 
 //*********************** Load values ******************************//
 
-void LiftDragPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
+void UWDynamicsPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 {
-	GZ_ASSERT(_model, "LiftDragPlugin _model pointer is NULL");
-	GZ_ASSERT(_sdf, "LiftDragPlugin _sdf pointer is NULL");
+	GZ_ASSERT(_model, "UWDynamicsPlugin _model pointer is NULL");
+	GZ_ASSERT(_sdf, "UWDynamicsPlugin _sdf pointer is NULL");
 	this->model = _model;
 	this->modelName = _model->GetName();
 	this->sdf = _sdf;
 	this->world = this->model->GetWorld();
-	GZ_ASSERT(this->world, "LiftDragPlugin world pointer is NULL");
+	GZ_ASSERT(this->world, "UWDynamicsPlugin world pointer is NULL");
 	this->physics = this->world->GetPhysicsEngine();
-	GZ_ASSERT(this->physics, "LiftDragPlugin physics pointer is NULL");
-	GZ_ASSERT(_sdf, "LiftDragPlugin _sdf pointer is NULL");
+	GZ_ASSERT(this->physics, "UWDynamicsPlugin physics pointer is NULL");
+	GZ_ASSERT(_sdf, "UWDynamicsPlugin _sdf pointer is NULL");
 
 	//*********************** Load values from SDF ******************************//
 
@@ -45,7 +44,7 @@ void LiftDragPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 	for (auto link : this->model->GetLinks())
 	{
 		int id = link->GetId();
-		ROS_INFO_NAMED("Hello", "this is link :%d", id);
+		//ROS_INFO_NAMED("Hello", "this is link :%d", id);
 		if (this->volPropsMap.find(id) == this->volPropsMap.end())
 		{
 			double volumeSum = 0;
@@ -58,7 +57,7 @@ void LiftDragPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 				for (auto joint : link->GetParentJoints())
 				{
 					int Jid = joint->GetChild()->GetId();
-					ROS_INFO_NAMED("joint retrieved","joint retrieved: %d", Jid);
+					//ROS_INFO_NAMED("joint retrieved","joint retrieved: %d", Jid);
 					math::Vector3 local_axis = math::Vector3::Zero;
 					math::Vector3 new_local_axis = math::Vector3::Zero;
 					double a[3]={0.0, 0.0, 0.0}, b[3]={0.0, 0.0, 0.0};
@@ -85,16 +84,6 @@ void LiftDragPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 					this->volPropsMap[id].upward = math::Vector3(a[0], a[1], a[2]);
 					this->volPropsMap[id].forward = local_axis.Cross(this->volPropsMap[id].upward).GetAbs();
 					this->volPropsMap[id].area = this->volPropsMap[id].size.Dot(new_local_axis) * this->volPropsMap[id].size.Dot(new_local_axis.Cross(this->volPropsMap[id].upward).GetAbs());
-					/*
-					ROS_INFO_NAMED("length", "length: %0.7lf",this->volPropsMap[id].size[0]);
-					ROS_INFO_NAMED("length", "breadth: %0.7lf",this->volPropsMap[id].size[1]);
-					ROS_INFO_NAMED("length", "height: %0.7lf",this->volPropsMap[id].size[2]);
-					ROS_INFO_NAMED("length", "area: %0.7lf",this->volPropsMap[id].area);
-					ROS_INFO_NAMED("loc", "local %0.7lf, %0.7lf, %0.7lf",new_local_axis.x,new_local_axis.y,new_local_axis.z);
-					ROS_INFO_NAMED("up", "up %0.7lf, %0.7lf, %0.7lf",this->volPropsMap[id].upward.x,this->volPropsMap[id].upward.y,this->volPropsMap[id].upward.z);
-					ROS_INFO_NAMED("forw", "forw %0.7lf, %0.7lf, %0.7lf",this->volPropsMap[id].forward.x,this->volPropsMap[id].forward.y,this->volPropsMap[id].forward.z);
-					ROS_INFO_NAMED("Hello", "***********%d************",i);
-					*/
 				}
 			}
 			else
@@ -102,7 +91,7 @@ void LiftDragPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 				for (auto joint : link->GetChildJoints())
 				{
 					int Jid = joint->GetParent()->GetId();
-					ROS_INFO_NAMED("joint retrieved","joint retrieved: %d", Jid);
+					//ROS_INFO_NAMED("joint retrieved","joint retrieved: %d", Jid);
 					math::Vector3 local_axis = math::Vector3::Zero;
 					double a[3]={0.0, 0.0, 0.0};
 					local_axis = joint->GetLocalAxis(0);
@@ -117,16 +106,6 @@ void LiftDragPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 					this->volPropsMap[id].upward = math::Vector3(a[0], a[1], a[2]);
 					this->volPropsMap[id].forward = local_axis.Cross(this->volPropsMap[id].upward).GetAbs();
 					this->volPropsMap[id].area = this->volPropsMap[id].size.Dot(local_axis) * this->volPropsMap[id].size.Dot(local_axis.Cross(this->volPropsMap[id].upward).GetAbs());
-					/*
-					ROS_INFO_NAMED("length", "length: %0.7lf",this->volPropsMap[id].size[0]);
-					ROS_INFO_NAMED("length", "breadth: %0.7lf",this->volPropsMap[id].size[1]);
-					ROS_INFO_NAMED("length", "height: %0.7lf",this->volPropsMap[id].size[2]);
-					ROS_INFO_NAMED("length", "area: %0.7lf",this->volPropsMap[id].area);
-					ROS_INFO_NAMED("loc", "local %0.7lf, %0.7lf, %0.7lf",local_axis.x,local_axis.y,local_axis.z);
-					ROS_INFO_NAMED("up", "up %0.7lf, %0.7lf, %0.7lf",this->volPropsMap[id].upward.x,this->volPropsMap[id].upward.y,this->volPropsMap[id].upward.z);
-					ROS_INFO_NAMED("forw", "forw %0.7lf, %0.7lf, %0.7lf",this->volPropsMap[id].forward.x,this->volPropsMap[id].forward.y,this->volPropsMap[id].forward.z);
-					ROS_INFO_NAMED("Hello", "***********%d************",i);
-					*/
 				}				
 			}
 
@@ -144,6 +123,16 @@ void LiftDragPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 			this->volPropsMap[id].Cdrift = 1.47;
 			this->volPropsMap[id].CMass = 0.0;
 			this->volPropsMap[id].Clift = 0.0;
+			
+			ROS_INFO_NAMED("length", "length: %0.7lf",this->volPropsMap[id].size[0]);
+			ROS_INFO_NAMED("breadth", "breadth: %0.7lf",this->volPropsMap[id].size[1]);
+			ROS_INFO_NAMED("height", "height: %0.7lf",this->volPropsMap[id].size[2]);
+			ROS_INFO_NAMED("area", "area: %0.7lf",this->volPropsMap[id].area);
+			ROS_INFO_NAMED("Volume", "volume: %0.7lf",this->volPropsMap[id].volume);
+			ROS_INFO_NAMED("up", "up %0.7lf, %0.7lf, %0.7lf",this->volPropsMap[id].upward.x,this->volPropsMap[id].upward.y,this->volPropsMap[id].upward.z);
+			ROS_INFO_NAMED("forw", "forw %0.7lf, %0.7lf, %0.7lf",this->volPropsMap[id].forward.x,this->volPropsMap[id].forward.y,this->volPropsMap[id].forward.z);
+			ROS_INFO_NAMED("Hello", "***********%d************",i);
+
 		}
 		i++;
 	}
@@ -153,17 +142,17 @@ void LiftDragPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 
 //*********************** Init ******************************//
 
-void LiftDragPlugin::Init()
+void UWDynamicsPlugin::Init()
 {
   this->updateConnection = event::Events::ConnectWorldUpdateBegin(
-          boost::bind(&LiftDragPlugin::OnUpdate, this));
+          boost::bind(&UWDynamicsPlugin::OnUpdate, this));
 }
 
 //###########################################################//
 
 //*********************** Update forces ******************************//
 
-void LiftDragPlugin::OnUpdate()
+void UWDynamicsPlugin::OnUpdate()
 {
 	//*********************** Buoyant force ******************************//
 
@@ -221,7 +210,7 @@ void LiftDragPlugin::OnUpdate()
 
 		// compute dynamic pressure
 		double speedInLDPlane = velInLDPlane.GetLength();
-		double q = 0.5 * this->rho * speedInLDPlane * speedInLDPlane;
+		double q = 0.333333333 * this->rho * speedInLDPlane * speedInLDPlane;
 		// drag at cp
 		
 		//ROS_INFO_NAMED("angle", "Cdrift: %0.7lf", cd);

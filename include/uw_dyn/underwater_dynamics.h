@@ -44,10 +44,10 @@ namespace gazebo
   };
 
   /// \brief A plugin that simulates lift and drag.
-  class LiftDragPlugin : public ModelPlugin
+  class UWDynamicsPlugin : public ModelPlugin
   {
     /// \brief Constructor.
-    public: LiftDragPlugin();
+    public: UWDynamicsPlugin();
 
     // Documentation Inherited.
     public: virtual void Load(physics::ModelPtr _model, sdf::ElementPtr _sdf);
@@ -89,10 +89,6 @@ namespace gazebo
 
     /// \brief SDF for this plugin;
     protected: sdf::ElementPtr sdf;
-
-    /// \brief The density of the fluid in which the object is submerged in
-    /// kg/m^3. Defaults to 1000, the fluid density of water.
-    protected: double fluidDensity;
 
     /// \brief Map of <link ID, point> pairs mapping link IDs to the CoV (center
     /// of volume) and volume of the link.
