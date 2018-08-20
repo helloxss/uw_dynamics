@@ -15,10 +15,10 @@ namespace gazebo
 {
 
   /// \brief A class for storing the volume properties of a link.
-  class VolumeProperties
+  class properties
   {
     /// \brief Default constructor.
-    public: VolumeProperties() : volume(0) {}
+    public: properties() : volume(0) {}
 
     /// \brief Center of volume in the link frame.
     public: ignition::math::Vector3d cov;
@@ -38,9 +38,9 @@ namespace gazebo
     /// \brief effective planeform surface area
     public: double area;
 
-    public: double Cdrift;
-    public: double Clift;
-    public: double CMass;
+    public: double cDrift;
+    public: double cLift;
+    public: double cMass;
   };
 
   /// \brief A plugin that simulates lift and drag.
@@ -55,6 +55,7 @@ namespace gazebo
     // Documentation Inherited.
     public: virtual void Init();
 
+    public: void getProperties(physics::JointPtr joint, properties& ptr, math::Vector3 y_axis, math::Vector3 z_axis);
     /// \brief Callback for World Update events.
     protected: virtual void OnUpdate();
 
@@ -92,7 +93,7 @@ namespace gazebo
 
     /// \brief Map of <link ID, point> pairs mapping link IDs to the CoV (center
     /// of volume) and volume of the link.
-    protected: std::map<int, VolumeProperties> volPropsMap;
+    protected: std::map<int, properties> propsMap;
 
   };
 }

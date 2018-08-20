@@ -12,8 +12,7 @@ GZ_REGISTER_MODEL_PLUGIN(UWDynamicsPlugin)
 
 //*********************** Default values ******************************//
 
-UWDynamicsPlugin::UWDynamicsPlugin() : rho(999.1026)
-{}
+UWDynamicsPlugin::UWDynamicsPlugin() : rho(999.1026){}
 
 //##################################################################//
 
@@ -41,73 +40,26 @@ void UWDynamicsPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 
 	//*********************** Compute values for all links ******************************//
 	int i = 0;
+	math::Vector3 y_axis = math::Vector3(0, 1, 0);
+	math::Vector3 z_axis = math::Vector3(0, 0, 1);
+
 	for (auto link : this->model->GetLinks())
 	{
 		int id = link->GetId();
-		//ROS_INFO_NAMED("Hello", "this is link :%d", id);
-		if (this->volPropsMap.find(id) == this->volPropsMap.end())
+		if (this->propsMap.find(id) == this->propsMap.end())
 		{
 			double volumeSum = 0;
 			ignition::math::Vector3d weightedPosSum = ignition::math::Vector3d::Zero;
 			math::Vector3 weightedPosSumCOP = math::Vector3::Zero;
-			this->volPropsMap[id].size = link->GetCollisionBoundingBox().GetSize();
+			this->propsMap[id].size = link->GetCollisionBoundingBox().GetSize();
 
 			if(i == this->model->GetJointCount())
-			{
 				for (auto joint : link->GetParentJoints())
-				{
-					int Jid = joint->GetChild()->GetId();
-					//ROS_INFO_NAMED("joint retrieved","joint retrieved: %d", Jid);
-					math::Vector3 local_axis = math::Vector3::Zero;
-					math::Vector3 new_local_axis = math::Vector3::Zero;
-					double a[3]={0.0, 0.0, 0.0}, b[3]={0.0, 0.0, 0.0};
-					local_axis = joint->GetLocalAxis(0);
-					for(int i=0;i<3;i++)
-					{
-						if(abs(local_axis[i])>0.0)
-							if(i<2)
-								a[i+1]=1.0;
-							else
-								a[i-1]=1.0;
-					}
-					new_local_axis = math::Vector3(a[0], a[1], a[2]);
+					getProperties(joint, this->propsMap[id], y_axis, z_axis);
 
-					for(int i=0;i<3;i++)
-					{
-						if(abs(new_local_axis[i])>0.0)
-							if(i<2)
-								b[i+1]=1.0;
-							else
-								b[i-1]=1.0;
-					}
-
-					this->volPropsMap[id].upward = math::Vector3(a[0], a[1], a[2]);
-					this->volPropsMap[id].forward = local_axis.Cross(this->volPropsMap[id].upward).GetAbs();
-					this->volPropsMap[id].area = this->volPropsMap[id].size.Dot(new_local_axis) * this->volPropsMap[id].size.Dot(new_local_axis.Cross(this->volPropsMap[id].upward).GetAbs());
-				}
-			}
 			else
-			{
 				for (auto joint : link->GetChildJoints())
-				{
-					int Jid = joint->GetParent()->GetId();
-					//ROS_INFO_NAMED("joint retrieved","joint retrieved: %d", Jid);
-					math::Vector3 local_axis = math::Vector3::Zero;
-					double a[3]={0.0, 0.0, 0.0};
-					local_axis = joint->GetLocalAxis(0);
-					for(int i=0;i<3;i++)
-					{
-						if(abs(local_axis[i])>0.0)
-							if(i<2)
-								a[i+1]=1.0;
-							else
-								a[i-1]=1.0;
-					}
-					this->volPropsMap[id].upward = math::Vector3(a[0], a[1], a[2]);
-					this->volPropsMap[id].forward = local_axis.Cross(this->volPropsMap[id].upward).GetAbs();
-					this->volPropsMap[id].area = this->volPropsMap[id].size.Dot(local_axis) * this->volPropsMap[id].size.Dot(local_axis.Cross(this->volPropsMap[id].upward).GetAbs());
-				}				
-			}
+					getProperties(joint, this->propsMap[id], y_axis, z_axis);
 
 			for (auto collision : link->GetCollisions())
 			{
@@ -117,21 +69,26 @@ void UWDynamicsPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 				weightedPosSum += volume*collision->GetWorldPose().pos.Ign();
 			}
 
-			this->volPropsMap[id].cov = weightedPosSum/volumeSum - link->GetWorldPose().pos.Ign();
-			this->volPropsMap[id].cop = math::Vector3(0, 0, 0);
-			this->volPropsMap[id].volume = volumeSum;
-			this->volPropsMap[id].Cdrift = 1.47;
-			this->volPropsMap[id].CMass = 0.0;
-			this->volPropsMap[id].Clift = 0.0;
+			this->propsMap[id].cov = weightedPosSum/volumeSum - link->GetWorldPose().pos.Ign();
+			this->propsMap[id].cop = math::Vector3(0, 0, 0);
+			this->propsMap[id].volume = volumeSum;
+			this->propsMap[id].cDrift = 1.47;
+			this->propsMap[id].cMass = 0.0;
+			this->propsMap[id].cLift = 0.0;
 			
-			ROS_INFO_NAMED("length", "length: %0.7lf",this->volPropsMap[id].size[0]);
-			ROS_INFO_NAMED("breadth", "breadth: %0.7lf",this->volPropsMap[id].size[1]);
-			ROS_INFO_NAMED("height", "height: %0.7lf",this->volPropsMap[id].size[2]);
-			ROS_INFO_NAMED("area", "area: %0.7lf",this->volPropsMap[id].area);
-			ROS_INFO_NAMED("Volume", "volume: %0.7lf",this->volPropsMap[id].volume);
-			ROS_INFO_NAMED("up", "up %0.7lf, %0.7lf, %0.7lf",this->volPropsMap[id].upward.x,this->volPropsMap[id].upward.y,this->volPropsMap[id].upward.z);
-			ROS_INFO_NAMED("forw", "forw %0.7lf, %0.7lf, %0.7lf",this->volPropsMap[id].forward.x,this->volPropsMap[id].forward.y,this->volPropsMap[id].forward.z);
-			ROS_INFO_NAMED("Hello", "***********%d************",i);
+			ROS_INFO_NAMED("link", "***********( %d )************",i+1);
+			ROS_INFO_NAMED("ID", "linkID: %d", id);
+			ROS_INFO_NAMED("length", "length: %0.7lf",this->propsMap[id].size[0]);
+			ROS_INFO_NAMED("breadth", "breadth: %0.7lf",this->propsMap[id].size[1]);
+			ROS_INFO_NAMED("height", "height: %0.7lf",this->propsMap[id].size[2]);
+			ROS_INFO_NAMED("area", "area: %0.7lf",this->propsMap[id].area);
+			ROS_INFO_NAMED("volume", "volume: %0.7lf",this->propsMap[id].volume);
+			ROS_INFO_NAMED("upward", "upward: %0.7lf, %0.7lf, %0.7lf",this->propsMap[id].upward.x,this->propsMap[id].upward.y,this->propsMap[id].upward.z);
+			ROS_INFO_NAMED("forward", "forward: %0.7lf, %0.7lf, %0.7lf",this->propsMap[id].forward.x,this->propsMap[id].forward.y,this->propsMap[id].forward.z);
+			ROS_INFO_NAMED("cop", "cop: %0.7lf, %0.7lf, %0.7lf",this->propsMap[id].cop.x,this->propsMap[id].cop.y,this->propsMap[id].cop.z);
+			ROS_INFO_NAMED("cov", "cov: %0.7lf, %0.7lf, %0.7lf",this->propsMap[id].cov.X(),this->propsMap[id].cov.Y(),this->propsMap[id].cov.Z());
+			ROS_INFO_NAMED("params", "cDrift: %0.7lf; cMass: %0.7lf; cLift: %0.7lf;",this->propsMap[id].cDrift,this->propsMap[id].cMass,this->propsMap[id].cLift);
+			ROS_INFO_NAMED("end", "******************************\n");
 
 		}
 		i++;
@@ -158,41 +115,37 @@ void UWDynamicsPlugin::OnUpdate()
 
 	for (auto link : this->model->GetLinks())
 	{
-	    VolumeProperties volumeProperties = this->volPropsMap[link->GetId()];
-	    double volume = volumeProperties.volume;
+	    properties properties = this->propsMap[link->GetId()];
+	    double volume = properties.volume;
 	    GZ_ASSERT(volume > 0, "Nonpositive volume found in volume properties!");
 	    ignition::math::Vector3d buoyancy = -this->rho * volume * this->model->GetWorld()->Gravity();
 	    ignition::math::Pose3d linkFrame = link->GetWorldPose().Ign();
 	    ignition::math::Vector3d buoyancyLinkFrame = linkFrame.Rot().Inverse().RotateVector(buoyancy);
-	  	link->AddLinkForce(buoyancyLinkFrame, volumeProperties.cov);
+	  	link->AddLinkForce(buoyancyLinkFrame, properties.cov);
 	}
 
 	//###########################################################//
 
 	for (auto link : this->model->GetLinks())
 	{
-		VolumeProperties volumeProperties = this->volPropsMap[link->GetId()];
-		math::Vector3 vel = link->GetWorldLinearVel(volumeProperties.cop);
+		properties properties = this->propsMap[link->GetId()];
+		math::Vector3 vel = link->GetWorldLinearVel(properties.cop);
 		if (vel.GetLength() <= 0.01)
 			return;
 
 		math::Pose pose = link->GetWorldPose();
 		// rotate forward and upward vectors into inertial frame
-		math::Vector3 forwardI = pose.rot.RotateVector(volumeProperties.forward);
-		//ROS_INFO_NAMED("forward", "Forward: x: %0.7lf, y: %0.7lf, z: %0.7lf", volumeProperties.forward[0], volumeProperties.forward[1], volumeProperties.forward[2]);
-		//ROS_INFO_NAMED("forward", "ForwardINV: x: %0.7lf, y: %0.7lf, z: %0.7lf", forwardI[0], forwardI[1], forwardI[2]);
-		//ROS_INFO_NAMED("Hello", "***********************");
+		math::Vector3 forwardI = pose.rot.RotateVector(properties.forward);
+		math::Vector3 upwardI = pose.rot.RotateVector(properties.upward);
 
-		math::Vector3 upwardI = pose.rot.RotateVector(volumeProperties.upward);
 		// ldNormal vector to lift-drag-plane described in inertial frame
-		math::Vector3 ldNormal = forwardI.Cross(upwardI).Normalize();
-		//ROS_INFO_NAMED("forward", "Normal: x: %0.7lf, y: %0.7lf, z: %0.7lf", ldNormal[0], ldNormal[1], ldNormal[2]);
-		//ROS_INFO_NAMED("forward", "Velocity: x: %0.7lf, y: %0.7lf, z: %0.7lf", vel[0], vel[1], vel[2]);
+		math::Vector3 ldNormal = upwardI.Normalize();
 
 		// angle of attack is the angle between vel projected into lift-drag plane and forward vector
 		// projected = ldNormal Xcross ( vector Xcross ldNormal)
 		// so, velocity in lift-drag plane (expressed in inertial frame) is:
-		math::Vector3 velInLDPlane = ldNormal.Cross(vel.Cross(ldNormal));
+		double magVelNorm = vel.Dot(ldNormal);
+		math::Vector3 velInLDPlane = ldNormal * magVelNorm;
 		//ROS_INFO_NAMED("forward", "velInLDPlane: x: %0.7lf, y: %0.7lf, z: %0.7lf", velInLDPlane[0], velInLDPlane[1], velInLDPlane[2]);
 
 		// get direction of drag
@@ -210,20 +163,20 @@ void UWDynamicsPlugin::OnUpdate()
 
 		// compute dynamic pressure
 		double speedInLDPlane = velInLDPlane.GetLength();
-		double q = 0.333333333 * this->rho * speedInLDPlane * speedInLDPlane;
+		double q = 0.5 * this->rho * speedInLDPlane * speedInLDPlane;
 		// drag at cp
 		
-		//ROS_INFO_NAMED("angle", "Cdrift: %0.7lf", cd);
-		math::Vector3 lift = volumeProperties.Clift * q * volumeProperties.area * liftDirection;
-		math::Vector3 drag = volumeProperties.Cdrift * q * volumeProperties.area * dragDirection;
+		//ROS_INFO_NAMED("angle", "cDrift: %0.7lf", cd);
+		math::Vector3 lift = properties.cLift * q * properties.area * liftDirection;
+		math::Vector3 drag = properties.cDrift * q * properties.area * dragDirection;
 		// compute cm at cp, check for stall, correct for sweep
 
 		// compute moment (torque) at cp
-		math::Vector3 moment = volumeProperties.CMass * q * volumeProperties.area * momentDirection;
+		math::Vector3 moment = properties.cMass * q * properties.area * momentDirection;
 
 		// moment arm from cg to cp in inertial plane
 		math::Vector3 momentArm = pose.rot.RotateVector(
-		volumeProperties.cop - link->GetInertial()->GetCoG());
+		properties.cop - link->GetInertial()->GetCoG());
 		// gzerr << this->cp << " : " << this->link->GetInertial()->GetCoG() << "\n";
 
 		// force and torque about cg in inertial frame
@@ -249,10 +202,23 @@ void UWDynamicsPlugin::OnUpdate()
 			gzerr << "torque: " << torque << "\n";
 		}
 
-		link->AddForceAtRelativePosition(force, volumeProperties.cop);
+		link->AddForceAtRelativePosition(force, properties.cop);
 		link->AddTorque(torque);
 	}
-	//ROS_INFO_NAMED("Hello", "***********************");
 }
 
 //##################################################################//
+
+void UWDynamicsPlugin::getProperties(physics::JointPtr joint, properties& ptr, math::Vector3 y_axis, math::Vector3 z_axis)
+{
+	math::Vector3 local_axis = math::Vector3::Zero;
+	local_axis = joint->GetLocalAxis(0);
+
+	if(local_axis == z_axis)
+		ptr.upward = y_axis;
+	else
+		ptr.upward = z_axis;
+
+	ptr.forward = local_axis.Cross(ptr.upward).GetAbs();
+	ptr.area = ptr.size.Dot(local_axis) * ptr.size.Dot(local_axis.Cross(ptr.upward).GetAbs());
+}
