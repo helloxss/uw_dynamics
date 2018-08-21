@@ -72,9 +72,9 @@ void UWDynamicsPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 			this->propsMap[id].cov = weightedPosSum/volumeSum - link->GetWorldPose().pos.Ign();
 			this->propsMap[id].cop = math::Vector3(0, 0, 0);
 			this->propsMap[id].volume = volumeSum;
-			this->propsMap[id].cDrift = 1.47;
-			this->propsMap[id].cMass = 0.0;
-			this->propsMap[id].cLift = 0.0;
+			this->propsMap[id].cF = 0.01;
+			this->propsMap[id].cD = 0.001;
+			this->propsMap[id].cA = 0.001;
 			
 			ROS_INFO_NAMED("link", "***********( %d )************",i+1);
 			ROS_INFO_NAMED("ID", "linkID: %d", id);
@@ -83,11 +83,11 @@ void UWDynamicsPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 			ROS_INFO_NAMED("height", "height: %0.7lf",this->propsMap[id].size[2]);
 			ROS_INFO_NAMED("area", "area: %0.7lf",this->propsMap[id].area);
 			ROS_INFO_NAMED("volume", "volume: %0.7lf",this->propsMap[id].volume);
-			ROS_INFO_NAMED("upward", "upward: %0.7lf, %0.7lf, %0.7lf",this->propsMap[id].upward.x,this->propsMap[id].upward.y,this->propsMap[id].upward.z);
-			ROS_INFO_NAMED("forward", "forward: %0.7lf, %0.7lf, %0.7lf",this->propsMap[id].forward.x,this->propsMap[id].forward.y,this->propsMap[id].forward.z);
+			ROS_INFO_NAMED("normal", "normal: %0.7lf, %0.7lf, %0.7lf",this->propsMap[id].normal.x,this->propsMap[id].normal.y,this->propsMap[id].normal.z);
+			ROS_INFO_NAMED("tangential", "tangential: %0.7lf, %0.7lf, %0.7lf",this->propsMap[id].tangential.x,this->propsMap[id].tangential.y,this->propsMap[id].tangential.z);
 			ROS_INFO_NAMED("cop", "cop: %0.7lf, %0.7lf, %0.7lf",this->propsMap[id].cop.x,this->propsMap[id].cop.y,this->propsMap[id].cop.z);
 			ROS_INFO_NAMED("cov", "cov: %0.7lf, %0.7lf, %0.7lf",this->propsMap[id].cov.X(),this->propsMap[id].cov.Y(),this->propsMap[id].cov.Z());
-			ROS_INFO_NAMED("params", "cDrift: %0.7lf; cMass: %0.7lf; cLift: %0.7lf;",this->propsMap[id].cDrift,this->propsMap[id].cMass,this->propsMap[id].cLift);
+			ROS_INFO_NAMED("params", "cF: %0.7lf; cD: %0.7lf; cA: %0.7lf;",this->propsMap[id].cF,this->propsMap[id].cD,this->propsMap[id].cA);
 			ROS_INFO_NAMED("end", "******************************\n");
 
 		}
@@ -126,84 +126,55 @@ void UWDynamicsPlugin::OnUpdate()
 
 	//###########################################################//
 
+	int j = 0;
 	for (auto link : this->model->GetLinks())
 	{
 		properties properties = this->propsMap[link->GetId()];
-		math::Vector3 vel = link->GetWorldLinearVel(properties.cop);
+		math::Vector3 vel = link->GetWorldLinearVel();
+		math::Vector3 acc = link->GetRelativeLinearAccel();
+
 		if (vel.GetLength() <= 0.01)
 			return;
 
 		math::Pose pose = link->GetWorldPose();
-		// rotate forward and upward vectors into inertial frame
-		math::Vector3 forwardI = pose.rot.RotateVector(properties.forward);
-		math::Vector3 upwardI = pose.rot.RotateVector(properties.upward);
 
-		// ldNormal vector to lift-drag-plane described in inertial frame
-		math::Vector3 ldNormal = upwardI.Normalize();
+		// rotate tangential and normal vectors into inertial frame
+		math::Vector3 tangentialI = pose.rot.RotateVector(properties.tangential).Normalize();
+		math::Vector3 normalI = pose.rot.RotateVector(properties.normal).Normalize();
 
-		// angle of attack is the angle between vel projected into lift-drag plane and forward vector
-		// projected = ldNormal Xcross ( vector Xcross ldNormal)
-		// so, velocity in lift-drag plane (expressed in inertial frame) is:
-		double magVelNorm = vel.Dot(ldNormal);
-		math::Vector3 velInLDPlane = ldNormal * magVelNorm;
-		//ROS_INFO_NAMED("forward", "velInLDPlane: x: %0.7lf, y: %0.7lf, z: %0.7lf", velInLDPlane[0], velInLDPlane[1], velInLDPlane[2]);
+		math::Vector3 velT = tangentialI * vel.Dot(tangentialI);
+		math::Vector3 velN = normalI * vel.Dot(normalI);
+		math::Vector3 accT = tangentialI * acc.Dot(tangentialI);
+		math::Vector3 accN = normalI * acc.Dot(normalI);
 
-		// get direction of drag
-		math::Vector3 dragDirection = -velInLDPlane;
-		dragDirection.Normalize();
+		double magVelT = velT.GetLength();
+		double magVelN = velN.GetLength();
+		double magaccT = accT.GetLength();
+		double magaccN = accN.GetLength();
 
-		// get direction of lift
-		math::Vector3 liftDirection = ldNormal.Cross(velInLDPlane);
-		liftDirection.Normalize();
-		//ROS_INFO_NAMED("forward", "lift: x: %0.7lf, y: %0.7lf, z: %0.7lf", dragDirection[0], dragDirection[1], dragDirection[2]);
+		double cT = 0.25 * this->rho * 3.1415926535 * properties.cF * properties.length * properties.breadth;
+		double cN = 0.5 * this->rho * properties.cD * properties.length * properties.breadth;
+		double uT = 0.0;
+		double uN = 0.25 * this->rho * 3.1415926535 * properties.cA * properties.length * properties.breadth * properties.breadth;
 
+		double forceT = -1.0 * cT * sgn(magVelT) * magVelT * magVelT;
+		double forceN = -1.0 * ((uN * magaccN) + (cN * sgn(magVelN) * magVelN * magVelN));
 
-		// get direction of moment
-		math::Vector3 momentDirection = ldNormal;
-
-		// compute dynamic pressure
-		double speedInLDPlane = velInLDPlane.GetLength();
-		double q = 0.5 * this->rho * speedInLDPlane * speedInLDPlane;
-		// drag at cp
-		
-		//ROS_INFO_NAMED("angle", "cDrift: %0.7lf", cd);
-		math::Vector3 lift = properties.cLift * q * properties.area * liftDirection;
-		math::Vector3 drag = properties.cDrift * q * properties.area * dragDirection;
-		// compute cm at cp, check for stall, correct for sweep
-
-		// compute moment (torque) at cp
-		math::Vector3 moment = properties.cMass * q * properties.area * momentDirection;
-
-		// moment arm from cg to cp in inertial plane
-		math::Vector3 momentArm = pose.rot.RotateVector(
-		properties.cop - link->GetInertial()->GetCoG());
-		// gzerr << this->cp << " : " << this->link->GetInertial()->GetCoG() << "\n";
-
-		// force and torque about cg in inertial frame
-		math::Vector3 force = lift + drag;
-		// + moment.Cross(momentArm);
-
-		math::Vector3 torque = moment;
-		// - lift.Cross(momentArm) - drag.Cross(momentArm);
+		math::Vector3 tangentialForce = tangentialI * forceT;
+		math::Vector3 normalForce = normalI * forceN;
+		math::Vector3 force = tangentialForce + normalForce;
 
 		if (0)
 		{
 			gzerr << "=============================\n";
-			gzerr << "Link: [" << this->link->GetName()<< "] pose: [" << pose << "] dynamic pressure: [" << q << "]\n";
-			gzerr << "spd: [" << vel.GetLength() << "] vel: [" << vel << "]\n";
-			gzerr << "spd sweep: [" << velInLDPlane.GetLength()<< "] vel in LD: [" << velInLDPlane << "]\n";
-			gzerr << "forward (inertial): " << forwardI << "\n";
-			gzerr << "upward (inertial): " << upwardI << "\n";
-			gzerr << "lift dir (inertial): " << liftDirection << "\n";
-			gzerr << "LD Normal: " << ldNormal << "\n";
-			gzerr << "moment: " << moment << "\n";
-			gzerr << "cp momentArm: " << momentArm << "\n";
+			gzerr << "tangential (inertial): " << tangentialI << "\n";
+			gzerr << "normal (inertial): " << normalI << "\n";
+			gzerr << "LD Normal: " << normalI << "\n";
 			gzerr << "force: " << force << "\n";
-			gzerr << "torque: " << torque << "\n";
 		}
 
 		link->AddForceAtRelativePosition(force, properties.cop);
-		link->AddTorque(torque);
+		j++;
 	}
 }
 
@@ -215,10 +186,19 @@ void UWDynamicsPlugin::getProperties(physics::JointPtr joint, properties& ptr, m
 	local_axis = joint->GetLocalAxis(0);
 
 	if(local_axis == z_axis)
-		ptr.upward = y_axis;
+		ptr.normal = y_axis;
 	else
-		ptr.upward = z_axis;
+		ptr.normal = z_axis;
 
-	ptr.forward = local_axis.Cross(ptr.upward).GetAbs();
-	ptr.area = ptr.size.Dot(local_axis) * ptr.size.Dot(local_axis.Cross(ptr.upward).GetAbs());
+	ptr.tangential = local_axis.Cross(ptr.normal).GetAbs();
+	ptr.length = ptr.size.Dot(ptr.tangential);
+	ptr.breadth = ptr.size.Dot(local_axis);
+	ptr.area = ptr.size.Dot(local_axis) * ptr.size.Dot(ptr.tangential);
+}
+
+double UWDynamicsPlugin::sgn(double k)
+{
+	if(k < 0) return -1.0;
+	else if (k > 0) return 1.0;
+	else return 0.0;
 }
