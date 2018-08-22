@@ -73,7 +73,7 @@ void UWDynamicsPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 			this->propsMap[id].cop = math::Vector3(0, 0, 0);
 			this->propsMap[id].volume = volumeSum;
 			this->propsMap[id].cF = 0.01;
-			this->propsMap[id].cD = 0.001;
+			this->propsMap[id].cD = 0.0001;
 			this->propsMap[id].cA = 0.001;
 			
 			ROS_INFO_NAMED("link", "***********( %d )************",i+1);
@@ -157,11 +157,11 @@ void UWDynamicsPlugin::OnUpdate()
 		double uT = 0.0;
 		double uN = 0.25 * this->rho * 3.1415926535 * properties.cA * properties.length * properties.breadth * properties.breadth;
 
-		double forceT = -1.0 * cT * sgn(magVelT) * magVelT * magVelT;
-		double forceN = -1.0 * ((uN * magaccN) + (cN * sgn(magVelN) * magVelN * magVelN));
+		double forceT = 1.0 * ((uN * magaccT) + (cN * sgn(magVelT) * magVelT * magVelT));
+		double forceN = 1.0 * cT * sgn(magVelN) * magVelN * magVelN;
 
-		math::Vector3 tangentialForce = tangentialI * forceT;
-		math::Vector3 normalForce = normalI * forceN;
+		math::Vector3 tangentialForce = -tangentialI * forceT;
+		math::Vector3 normalForce = -normalI * forceN;
 		math::Vector3 force = tangentialForce + normalForce;
 
 		if (0)
@@ -174,6 +174,15 @@ void UWDynamicsPlugin::OnUpdate()
 		}
 
 		link->AddForceAtRelativePosition(force, properties.cop);
+		if(j==0)
+		{
+			//ROS_INFO_NAMED("link", "***********( %d )************",j+1);
+			//ROS_INFO_NAMED("ID", "linkID: %d", link->GetId());
+			//ROS_INFO_NAMED("tangentialI", "tangentialI: %0.7lf, %0.7lf, %0.7lf",tangentialI.x,tangentialI.y,tangentialI.z);
+			//ROS_INFO_NAMED("normalI", "normalI: %0.7lf, %0.7lf, %0.7lf",normalI.x,normalI.y,normalI.z);
+			//ROS_INFO_NAMED("params", "cT: %0.7lf; cN: %0.7lf; uN: %0.7lf;",cT,cN,uN);
+			//ROS_INFO_NAMED("end", "******************************\n");			
+		}
 		j++;
 	}
 }
