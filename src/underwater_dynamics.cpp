@@ -75,13 +75,15 @@ void UWDynamicsPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 			this->propsMap[lid[i]].cog = this->propsMap[lid[i]].tangential * this->propsMap[lid[i]].length/2;
 			this->propsMap[lid[i]].volume = volumeSum;
 			this->propsMap[lid[i]].velocity = math::Vector3(0, 0, 0);
+			this->propsMap[lid[i]].prevVel = math::Vector3(0, 0, 0);
 			this->propsMap[lid[i]].omega = math::Vector3(0, 0, 0);
 			this->propsMap[lid[i]].relOmega = math::Vector3(0, 0, 0);
+
 			this->propsMap[lid[i]].cF = 0.01;
-			this->propsMap[lid[i]].cD = 0.0001;
+			this->propsMap[lid[i]].cD = 0.42;
 			this->propsMap[lid[i]].cA = 0.001;
 			
-			ROS_INFO_NAMED("link", "***********( %d )************",lid[i]);
+			ROS_INFO_NAMED("link", "***********( %d )************",i+1);
 			ROS_INFO_NAMED("ID", "linkID: %d", lid[i]);
 			ROS_INFO_NAMED("length", "length: %0.7lf",this->propsMap[lid[i]].size[0]);
 			ROS_INFO_NAMED("breadth", "breadth: %0.7lf",this->propsMap[lid[i]].size[1]);
@@ -135,49 +137,39 @@ void UWDynamicsPlugin::OnUpdate()
 	for (auto link : this->model->GetLinks())
 	{
 		this->propsMap[link->GetId()].omega = link->GetWorldAngularVel();
+
 		properties properties = this->propsMap[link->GetId()];
 		math::Vector3 vel = link->GetWorldLinearVel(properties.cog);
-		math::Vector3 acc = link->GetRelativeLinearAccel();
+		math::Vector3 acc = link->GetWorldLinearAccel();
 
 		if (vel.GetLength() <= 0.01)
 			return;
 
 		math::Pose pose = link->GetWorldPose();
-		// rotate tangential and normal vectors into inertial frame
 		math::Vector3 cogI = -pose.rot.RotateVector(properties.cog);
 
 		if(j == this->model->GetJointCount())
 		{
 			this->propsMap[link->GetId()].relOmega = vectorize(properties.omega - this->propsMap[lid[j-1]].omega);
 			this->propsMap[link->GetId()].velocity = vectorize(properties.relOmega.Cross(cogI));
-
 		}
 		else
 		{
 			this->propsMap[link->GetId()].relOmega = vectorize(properties.omega - this->propsMap[lid[j+1]].omega);
 			this->propsMap[link->GetId()].velocity = vectorize(properties.relOmega.Cross(cogI));
-
 		}
-		
+
+		math::Vector3 delVel = properties.velocity - properties.prevVel;
+		math::Vector3 acceleration = delVel/0.001;
+		this->propsMap[link->GetId()].prevVel = properties.velocity;
 		math::Vector3 tangentialI = pose.rot.RotateVector(properties.tangential).Normalize();
 		math::Vector3 normalI = pose.rot.RotateVector(properties.normal).Normalize();
 		math::Vector3 velo = properties.omega.Cross(cogI);
 
-		//ROS_INFO_NAMED("omegaCurr","relVel: x: %0.7lf, y: %0.7lf, z: %0.7lf", properties.velocity.x, properties.velocity.y, properties.velocity.z);
-
-		if(j==0)
-		{
-
-			//ROS_INFO_NAMED("omegaCurr","relOmega: x: %0.7lf, y: %0.7lf, z: %0.7lf", relOmega.x, relOmega.y, relOmega.z);
-			//ROS_INFO_NAMED("cogI","vel: x: %0.7lf, y: %0.7lf, z: %0.7lf", velo.x, velo.y, velo.z);
-			//ROS_INFO_NAMED("length", "velLength: %0.7lf || velo: %0.7lf", vel.GetLength(), velo.GetLength());
-			//ROS_INFO_NAMED("end", "******************************\n");
-		}
-
 		math::Vector3 velT = tangentialI * properties.velocity.Dot(tangentialI);
 		math::Vector3 velN = normalI * properties.velocity.Dot(normalI);
-		math::Vector3 accT = tangentialI * acc.Dot(tangentialI);
-		math::Vector3 accN = normalI * acc.Dot(normalI);
+		math::Vector3 accT = tangentialI * acceleration.Dot(tangentialI);
+		math::Vector3 accN = normalI * acceleration.Dot(normalI);
 
 		double magVelT = properties.velocity.Dot(tangentialI);
 		double magVelN = properties.velocity.Dot(normalI);
@@ -218,7 +210,6 @@ void UWDynamicsPlugin::OnUpdate()
 		}
 		j++;
 	}
-	//ROS_INFO_NAMED("end", "******************************\n");
 
 }
 
@@ -249,7 +240,7 @@ double UWDynamicsPlugin::sgn(double k)
 
 math::Vector3 UWDynamicsPlugin::vectorize(math::Vector3 vector)
 {
-	if(vector.GetLength() < 0.01)
+	if(vector.GetLength() < 0.005)
 		return math::Vector3(0, 0, 0);
 	else
 		return vector;
