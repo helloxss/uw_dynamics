@@ -18,8 +18,9 @@ namespace gazebo
   {
     public: properties() : volume(0) {}
 
-    public: ignition::math::Vector3d cov;
     public: math::Vector3 cop;
+    public: math::Vector3 cob;
+    public: math::Vector3 cog;
 
     public: math::Vector3 tangential;
     public: math::Vector3 normal;
@@ -31,9 +32,14 @@ namespace gazebo
     public: double length;
     public: double breadth;
 
+    public: math::Vector3 velocity;
+    public: math::Vector3 omega;
+    public: math::Vector3 relOmega;
+
     public: double cF;
     public: double cD;
     public: double cA;
+
   };
 
   class UWDynamicsPlugin : public ModelPlugin
@@ -46,6 +52,7 @@ namespace gazebo
 
     public: void getProperties(physics::JointPtr joint, properties& ptr, math::Vector3 y_axis, math::Vector3 z_axis);
     public: double sgn(double t);
+    public: math::Vector3 vectorize(math::Vector3 vector);
 
     protected: event::ConnectionPtr updateConnection;
     protected: physics::WorldPtr world;
@@ -55,6 +62,7 @@ namespace gazebo
     protected: std::string modelName;
 
     protected: double rho;
+    protected: int *lid;
 
     protected: physics::LinkPtr link;
     protected: sdf::ElementPtr sdf;

@@ -27,6 +27,10 @@ gazebo/transport/TransportTypes.hh
 ../include/uw_dyn/gazebo/transport/TransportTypes.hh
 
 /home/holy_cow/cowGazebo/uw_dyn/src/underwater_dynamics.cpp
+stdio.h
+-
+stdlib.h
+-
 algorithm
 -
 string
