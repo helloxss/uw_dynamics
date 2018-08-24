@@ -44,8 +44,18 @@ void UWDynamicsPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 	//*********************** Compute values for all links ******************************//
 	int i = 0;
 	lid = (int*) malloc(this->model->GetJointCount()+1 * sizeof(int));
+	comVel = math::Vector3(0, 0, 0);
+	comAccl = math::Vector3(0, 0, 0);
+	mass = 0.0;
 	math::Vector3 y_axis = math::Vector3(0, 1, 0);
 	math::Vector3 z_axis = math::Vector3(0, 0, 1);
+
+	for(auto link : this->model->GetLinks())
+	{
+		double m = 0.0;
+		m = link->GetInertial()->GetMass();
+		mass += m;
+	}
 
 	for (auto link : this->model->GetLinks())
 	{
@@ -76,13 +86,14 @@ void UWDynamicsPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 			this->propsMap[lid[i]].cog = this->propsMap[lid[i]].tangential * this->propsMap[lid[i]].length/2;
 			this->propsMap[lid[i]].volume = volumeSum;
 			this->propsMap[lid[i]].velocity = math::Vector3(0, 0, 0);
+			this->propsMap[lid[i]].acceleration = math::Vector3(0, 0, 0);
 			this->propsMap[lid[i]].prevVel = math::Vector3(0, 0, 0);
 			this->propsMap[lid[i]].omega = math::Vector3(0, 0, 0);
 			this->propsMap[lid[i]].relOmega = math::Vector3(0, 0, 0);
 
 			this->propsMap[lid[i]].cF = 0.01;
 			this->propsMap[lid[i]].cD = 0.42;
-			this->propsMap[lid[i]].cA = 0.005;
+			this->propsMap[lid[i]].cA = 0.001;
 			this->propsMap[lid[i]].cM = 0.42;
 			
 			ROS_INFO_NAMED("link", "***********( %d )************",i+1);
@@ -134,6 +145,15 @@ void UWDynamicsPlugin::OnUpdate()
 	}
 
 	//###########################################################//
+	comVel = math::Vector3(0, 0, 0);
+	for(auto link : this->model->GetLinks())
+	{
+		double m = 0.0;
+		properties properties = this->propsMap[link->GetId()];
+		m = link->GetInertial()->GetMass();
+		comVel += m * properties.velocity / mass;
+		comAccl += m * properties.acceleration / mass;
+	}
 
 	int j = 0;
 	for (auto link : this->model->GetLinks())
@@ -150,6 +170,7 @@ void UWDynamicsPlugin::OnUpdate()
 		math::Pose pose = link->GetWorldPose();
 		math::Vector3 cogI = -pose.rot.RotateVector(properties.cog);
 
+		/*
 		if(j == this->model->GetJointCount())
 		{
 			this->propsMap[link->GetId()].relOmega = vectorize(properties.omega - this->propsMap[lid[j-1]].omega);
@@ -160,9 +181,12 @@ void UWDynamicsPlugin::OnUpdate()
 			this->propsMap[link->GetId()].relOmega = vectorize(properties.omega - this->propsMap[lid[j+1]].omega);
 			this->propsMap[link->GetId()].velocity = vectorize(properties.relOmega.Cross(cogI));
 		}
+		*/
 
+		this->propsMap[link->GetId()].velocity = vel - comVel; //vectorize(properties.omega.Cross(cogI) - comVel);
+		
 		math::Vector3 delVel = properties.velocity - properties.prevVel;
-		math::Vector3 acceleration = delVel/0.001;
+		this->propsMap[link->GetId()].acceleration = acc - comAccl; //delVel/0.001;
 		this->propsMap[link->GetId()].prevVel = properties.velocity;
 
 		math::Vector3 localI = pose.rot.RotateVector(properties.localAxis).Normalize();
@@ -172,8 +196,8 @@ void UWDynamicsPlugin::OnUpdate()
 
 		double magVelT = properties.velocity.Dot(tangentialI);
 		double magVelN = properties.velocity.Dot(normalI);
-		double magaccT = acceleration.Dot(tangentialI);
-		double magaccN = acceleration.Dot(normalI);
+		double magaccT = properties.acceleration.Dot(tangentialI);
+		double magaccN = properties.acceleration.Dot(normalI);
 
 		double cT = 0.25 * this->rho * 3.1415926535 * properties.cF * properties.length * properties.breadth;
 		double cN = 0.5 * this->rho * properties.cD * properties.length * properties.breadth;
@@ -206,6 +230,8 @@ void UWDynamicsPlugin::OnUpdate()
 
 		link->AddForceAtRelativePosition(force, properties.cob);
 		link->AddTorque(torque);
+
+		//ROS_INFO_NAMED("comVel", "comVel: x: %0.7lf, y: %0.7lf, z: %0.7lf",comVel.x,comVel.y,comVel.z);
 
 		if(j==0)
 		{
