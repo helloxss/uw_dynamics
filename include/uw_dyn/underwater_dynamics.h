@@ -24,6 +24,7 @@ namespace gazebo
 
     public: math::Vector3 tangential;
     public: math::Vector3 normal;
+    public: math::Vector3 localAxis;
 
     public: math::Vector3 size;
 
@@ -40,6 +41,7 @@ namespace gazebo
     public: double cF;
     public: double cD;
     public: double cA;
+    public: double cM;
 
   };
 
