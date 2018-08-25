@@ -35,9 +35,6 @@ namespace gazebo
 
     public: math::Vector3 velocity;
     public: math::Vector3 acceleration;
-    public: math::Vector3 prevVel;
-    public: math::Vector3 omega;
-    public: math::Vector3 relOmega;
 
     public: double cF;
     public: double cD;
