@@ -189,13 +189,13 @@ void UWDynamicsPlugin::OnUpdate()
 		double forceT = 1.0 * ((uN * magaccT) + (cN * sgn(magVelT) * magVelT * magVelT));
 		double forceN = 1.0 * cT * sgn(magVelN) * magVelN * magVelN;
 
-		math::Vector3 tangentialForce = -tangentialI * forceT;
-		math::Vector3 normalForce = -normalI * forceN;
+		math::Vector3 tangentialForce = tangentialI * forceT;
+		math::Vector3 normalForce = normalI * forceN;
 		math::Vector3 force = tangentialForce + normalForce;
 
 		double torqueT = 1.0 * (lambda1 * magaccT) + (lambda2 * magVelT) + (lambda3 * magVelT * properties.velocity.GetLength());
 		double torqueN = 1.0 * (lambda1 * magaccN) + (lambda2 * magVelN) + (lambda3 * magVelN * properties.velocity.GetLength());
-		math::Vector3 torque = 1.0 * (torqueT + torqueN) * properties.localAxis;
+		math::Vector3 torque = -1.0 * (torqueT + torqueN) * properties.localAxis;
 
 		if (0)
 		{
