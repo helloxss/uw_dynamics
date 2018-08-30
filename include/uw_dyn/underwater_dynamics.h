@@ -24,6 +24,7 @@ namespace gazebo
 
     public: math::Vector3 tangential;
     public: math::Vector3 normal;
+    public: math::Vector3 localAxis;
 
     public: math::Vector3 size;
 
@@ -33,13 +34,15 @@ namespace gazebo
     public: double breadth;
 
     public: math::Vector3 velocity;
-    public: math::Vector3 prevVel;
+    public: math::Vector3 acceleration;
     public: math::Vector3 omega;
-    public: math::Vector3 relOmega;
+    public: math::Vector3 alpha;
+    public: math::Vector3 relAlpha;
 
     public: double cF;
     public: double cD;
     public: double cA;
+    public: double cM;
 
   };
 
@@ -53,7 +56,6 @@ namespace gazebo
 
     public: void getProperties(physics::JointPtr joint, properties& ptr, math::Vector3 y_axis, math::Vector3 z_axis);
     public: double sgn(double t);
-    public: math::Vector3 vectorize(math::Vector3 vector);
 
     protected: event::ConnectionPtr updateConnection;
     protected: physics::WorldPtr world;

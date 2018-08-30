@@ -75,13 +75,13 @@ void UWDynamicsPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 			this->propsMap[lid[i]].cog = this->propsMap[lid[i]].tangential * this->propsMap[lid[i]].length/2;
 			this->propsMap[lid[i]].volume = volumeSum;
 			this->propsMap[lid[i]].velocity = math::Vector3(0, 0, 0);
-			this->propsMap[lid[i]].prevVel = math::Vector3(0, 0, 0);
+			this->propsMap[lid[i]].acceleration = math::Vector3(0, 0, 0);
 			this->propsMap[lid[i]].omega = math::Vector3(0, 0, 0);
-			this->propsMap[lid[i]].relOmega = math::Vector3(0, 0, 0);
 
 			this->propsMap[lid[i]].cF = 0.01;
 			this->propsMap[lid[i]].cD = 0.42;
 			this->propsMap[lid[i]].cA = 0.001;
+			this->propsMap[lid[i]].cM = 0.3;
 			
 			ROS_INFO_NAMED("link", "***********( %d )************",i+1);
 			ROS_INFO_NAMED("ID", "linkID: %d", lid[i]);
@@ -137,6 +137,7 @@ void UWDynamicsPlugin::OnUpdate()
 	for (auto link : this->model->GetLinks())
 	{
 		this->propsMap[link->GetId()].omega = link->GetWorldAngularVel();
+		this->propsMap[link->GetId()].alpha = link->GetWorldAngularAccel();
 
 		properties properties = this->propsMap[link->GetId()];
 		math::Vector3 vel = link->GetWorldLinearVel(properties.cog);
@@ -148,62 +149,47 @@ void UWDynamicsPlugin::OnUpdate()
 		math::Pose pose = link->GetWorldPose();
 		math::Vector3 cogI = -pose.rot.RotateVector(properties.cog);
 
-		if(j == this->model->GetJointCount())
-		{
-			this->propsMap[link->GetId()].relOmega = vectorize(properties.omega - this->propsMap[lid[j-1]].omega);
-			this->propsMap[link->GetId()].velocity = vectorize(properties.relOmega.Cross(cogI));
-		}
-		else
-		{
-			this->propsMap[link->GetId()].relOmega = vectorize(properties.omega - this->propsMap[lid[j+1]].omega);
-			this->propsMap[link->GetId()].velocity = vectorize(properties.relOmega.Cross(cogI));
-		}
+		this->propsMap[link->GetId()].velocity = properties.omega.Cross(cogI);
+		this->propsMap[link->GetId()].acceleration = properties.alpha.Cross(cogI);
 
-		math::Vector3 delVel = properties.velocity - properties.prevVel;
-		math::Vector3 acceleration = delVel/0.001;
-		this->propsMap[link->GetId()].prevVel = properties.velocity;
 		math::Vector3 tangentialI = pose.rot.RotateVector(properties.tangential).Normalize();
 		math::Vector3 normalI = pose.rot.RotateVector(properties.normal).Normalize();
-		math::Vector3 velo = properties.omega.Cross(cogI);
-
-		math::Vector3 velT = tangentialI * properties.velocity.Dot(tangentialI);
-		math::Vector3 velN = normalI * properties.velocity.Dot(normalI);
-		math::Vector3 accT = tangentialI * acceleration.Dot(tangentialI);
-		math::Vector3 accN = normalI * acceleration.Dot(normalI);
 
 		double magVelT = properties.velocity.Dot(tangentialI);
 		double magVelN = properties.velocity.Dot(normalI);
-		double magaccT = accT.GetLength();
-		double magaccN = accN.GetLength();
+		double magaccT = properties.acceleration.Dot(tangentialI);
+		double magaccN = properties.acceleration.Dot(normalI);
 
 		double cT = 0.25 * this->rho * 3.1415926535 * properties.cF * properties.length * properties.breadth;
 		double cN = 0.5 * this->rho * properties.cD * properties.length * properties.breadth;
 		double uT = 0.0;
 		double uN = 0.25 * this->rho * 3.1415926535 * properties.cA * properties.length * properties.breadth * properties.breadth;
 
-		double forceT = 1.0 * ((uN * magaccT) + (cN * sgn(magVelT) * magVelT * magVelT));
-		double forceN = 1.0 * cT * sgn(magVelN) * magVelN * magVelN;
+		double forceT = 1.0 * ((uN * magaccT) + (cN * magVelT) + (cN * sgn(magVelT) * magVelT * magVelT));
+		double forceN = 1.0 * ((cT * magVelN) + (cT * sgn(magVelN) * magVelN * magVelN));
 
 		math::Vector3 tangentialForce = -tangentialI * forceT;
 		math::Vector3 normalForce = -normalI * forceN;
 		math::Vector3 force = tangentialForce + normalForce;
 
-		if (0)
-		{
-			gzerr << "=============================\n";
-			gzerr << "tangential (inertial): " << tangentialI << "\n";
-			gzerr << "normal (inertial): " << normalI << "\n";
-			gzerr << "LD Normal: " << normalI << "\n";
-			gzerr << "force: " << force << "\n";
-		}
 
-		link->AddForceAtRelativePosition(force, properties.cob);
+		double lambda1 = 0.08333333333 * this->rho * 3.1415926535 * properties.cM * pow(properties.length/2, 2) * 0.0;
+		double lambda2 = 0.16666666666 * this->rho * 3.1415926535 * properties.cF * properties.breadth * pow(properties.length/2, 3);
+		double lambda3 = 0.125 * this->rho * 3.1415926535 * properties.cF * properties.breadth * pow(properties.length/2, 4);
+
+		double torqueT = 1.0 * (lambda1 * magaccT) + (lambda2 * magVelT) + (lambda3 * magVelT * properties.velocity.GetLength());
+		double torqueN = 1.0 * (lambda1 * magaccN) + (lambda2 * magVelN) + (lambda3 * magVelN * properties.velocity.GetLength());
+		math::Vector3 torque = -1.0 * (torqueT + torqueN) * properties.localAxis;
+
+		//link->AddForceAtRelativePosition(force, properties.cob);
+		link->AddLinkForce(force);
+		link->AddRelativeTorque(torque);
 
 		if(j==0)
 		{
 			//ROS_INFO_NAMED("link", "***********( %d )************",j+1);
 			//ROS_INFO_NAMED("ID", "linkID: %d", link->GetId());
-			//ROS_INFO_NAMED("tangentialI", "tangentialI: %0.7lf, %0.7lf, %0.7lf",tangentialI.x,tangentialI.y,tangentialI.z);
+			//ROS_INFO_NAMED("tangentialI", "force: %0.7lf, %0.7lf, %0.7lf",force.x,force.y,force.z);
 			//ROS_INFO_NAMED("normalI", "normalI: %0.7lf, %0.7lf, %0.7lf",normalI.x,normalI.y,normalI.z);
 			//ROS_INFO_NAMED("params", "cT: %0.7lf; cN: %0.7lf; uN: %0.7lf;",cT,cN,uN);
 			//ROS_INFO_NAMED("end", "******************************\n");			
@@ -217,18 +203,17 @@ void UWDynamicsPlugin::OnUpdate()
 
 void UWDynamicsPlugin::getProperties(physics::JointPtr joint, properties& ptr, math::Vector3 y_axis, math::Vector3 z_axis)
 {
-	math::Vector3 local_axis = math::Vector3::Zero;
-	local_axis = joint->GetLocalAxis(0);
+	ptr.localAxis = joint->GetLocalAxis(0);
 
-	if(local_axis == z_axis)
+	if(ptr.localAxis == z_axis)
 		ptr.normal = y_axis;
 	else
 		ptr.normal = z_axis;
 
-	ptr.tangential = local_axis.Cross(ptr.normal).GetAbs();
+	ptr.tangential = ptr.localAxis.Cross(ptr.normal).GetAbs();
 	ptr.length = ptr.size.Dot(ptr.tangential);
-	ptr.breadth = ptr.size.Dot(local_axis);
-	ptr.area = ptr.size.Dot(local_axis) * ptr.size.Dot(ptr.tangential);
+	ptr.breadth = ptr.size.Dot(ptr.localAxis);
+	ptr.area = ptr.size.Dot(ptr.localAxis) * ptr.size.Dot(ptr.tangential);
 }
 
 double UWDynamicsPlugin::sgn(double k)
@@ -236,12 +221,4 @@ double UWDynamicsPlugin::sgn(double k)
 	if(k < 0) return -1.0;
 	else if (k > 0) return 1.0;
 	else return 0.0;
-}
-
-math::Vector3 UWDynamicsPlugin::vectorize(math::Vector3 vector)
-{
-	if(vector.GetLength() < 0.005)
-		return math::Vector3(0, 0, 0);
-	else
-		return vector;
 }

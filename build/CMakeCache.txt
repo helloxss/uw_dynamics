@@ -101,6 +101,10 @@ CATKIN_PACKAGE_PREFIX:STRING=
 //Catkin skip testing
 CATKIN_SKIP_TESTING:BOOL=OFF
 
+//Replace the CMake install command with a custom implementation
+// using symlinks instead of copying resources
+CATKIN_SYMLINK_INSTALL:BOOL=OFF
+
 //Path to a program.
 CMAKE_AR:FILEPATH=/usr/bin/ar
 
