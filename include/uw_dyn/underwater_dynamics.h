@@ -37,12 +37,13 @@ namespace gazebo
     public: math::Vector3 acceleration;
     public: math::Vector3 omega;
     public: math::Vector3 alpha;
-    public: math::Vector3 relAlpha;
 
-    public: double cF;
-    public: double cD;
-    public: double cA;
-    public: double cM;
+    public: double cDt;
+    public: double cDn;
+    public: double cD2t;
+    public: double cD2n;
+    public: double cMt;
+    public: double cMn;
 
   };
 

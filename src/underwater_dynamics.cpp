@@ -78,10 +78,13 @@ void UWDynamicsPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 			this->propsMap[lid[i]].acceleration = math::Vector3(0, 0, 0);
 			this->propsMap[lid[i]].omega = math::Vector3(0, 0, 0);
 
-			this->propsMap[lid[i]].cF = 0.01;
-			this->propsMap[lid[i]].cD = 0.42;
-			this->propsMap[lid[i]].cA = 0.001;
-			this->propsMap[lid[i]].cM = 0.3;
+			this->propsMap[lid[i]].cDt = 0.3393;
+			this->propsMap[lid[i]].cD2t = 0.001;
+			this->propsMap[lid[i]].cMt = 0.001;
+
+			this->propsMap[lid[i]].cDn = 1.0;
+			this->propsMap[lid[i]].cD2n = 1.0;
+			this->propsMap[lid[i]].cMn = 1.0;
 			
 			ROS_INFO_NAMED("link", "***********( %d )************",i+1);
 			ROS_INFO_NAMED("ID", "linkID: %d", lid[i]);
@@ -94,7 +97,7 @@ void UWDynamicsPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 			ROS_INFO_NAMED("tangential", "tangential: %0.7lf, %0.7lf, %0.7lf",this->propsMap[lid[i]].tangential.x,this->propsMap[lid[i]].tangential.y,this->propsMap[lid[i]].tangential.z);
 			ROS_INFO_NAMED("cop", "cop: %0.7lf, %0.7lf, %0.7lf",this->propsMap[lid[i]].cop.x,this->propsMap[lid[i]].cop.y,this->propsMap[lid[i]].cop.z);
 			ROS_INFO_NAMED("cog", "cog: %0.7lf, %0.7lf, %0.7lf",this->propsMap[lid[i]].cog.x,this->propsMap[lid[i]].cog.y,this->propsMap[lid[i]].cog.z);			
-			ROS_INFO_NAMED("params", "cF: %0.7lf; cD: %0.7lf; cA: %0.7lf;",this->propsMap[lid[i]].cF,this->propsMap[lid[i]].cD,this->propsMap[lid[i]].cA);
+			//ROS_INFO_NAMED("params", "cF: %0.7lf; cD: %0.7lf; cA: %0.7lf;",this->propsMap[lid[i]].cF,this->propsMap[lid[i]].cD,this->propsMap[lid[i]].cA);
 			ROS_INFO_NAMED("end", "******************************\n");
 
 		}
@@ -155,6 +158,15 @@ void UWDynamicsPlugin::OnUpdate()
 		math::Vector3 tangentialI = pose.rot.RotateVector(properties.tangential).Normalize();
 		math::Vector3 normalI = pose.rot.RotateVector(properties.normal).Normalize();
 
+		double cAddedMass = 0.125 * properties.cMt * this->rho * 3.1415926535 * pow(properties.breadth, 2) * pow(properties.length, 2) * properties.alpha.GetLength() ;
+		double cLinearDrag = 0.5 * properties.cDt * pow(properties.length, 2) * properties.omega.GetLength();
+		double cNonLinearDrag = 0.16666666666666666 * properties.cD2t * this->rho * properties.breadth * pow(properties.length, 3) * pow(properties.omega.GetLength(), 2);
+
+		math::Vector3 force = -1.0 * (cAddedMass + cLinearDrag + cNonLinearDrag) * tangentialI;
+		link->AddLinkForce(force);
+
+		/***************** old approach ********************\
+
 		double magVelT = properties.velocity.Dot(tangentialI);
 		double magVelN = properties.velocity.Dot(normalI);
 		double magaccT = properties.acceleration.Dot(tangentialI);
@@ -185,8 +197,14 @@ void UWDynamicsPlugin::OnUpdate()
 		link->AddLinkForce(force);
 		link->AddRelativeTorque(torque);
 
+		\*************************************************/
+
 		if(j==0)
 		{
+			//ROS_INFO_NAMED("omegavel", "omegavel: %0.7lf, %0.7lf, %0.7lf",properties.velocity.x, properties.velocity.y, properties.velocity.z);
+			//ROS_INFO_NAMED("truvel", "Truevel: %0.7lf, %0.7lf, %0.7lf",vel.x, vel.y, vel.z);
+			//ROS_INFO_NAMED("error", "error: %0.7lf", properties.velocity.GetLength()-vel.GetLength());
+
 			//ROS_INFO_NAMED("link", "***********( %d )************",j+1);
 			//ROS_INFO_NAMED("ID", "linkID: %d", link->GetId());
 			//ROS_INFO_NAMED("tangentialI", "force: %0.7lf, %0.7lf, %0.7lf",force.x,force.y,force.z);
