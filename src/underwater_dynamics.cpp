@@ -153,24 +153,68 @@ void UWDynamicsPlugin::OnUpdate()
 	}
 
 	int j = 0;
+
+	double Mct = 0.0;
+	double LDct = 0.1;
+	double NLDct = 0.1;
+
+	double Mcn = 0.1;
+	double LDcn = 0.35;
+	double NLDcn = 0.1;
+
 	for (auto link : this->model->GetLinks())
 	{
 		properties properties = this->propsMap[link->GetId()];
+
+		math::Pose pose = link->GetWorldPose();
+		math::Vector3 localI = pose.rot.RotateVector(properties.localAxis).Normalize();
+		math::Vector3 tangentialI = pose.rot.RotateVector(properties.tangential).Normalize();
+		math::Vector3 normalI = pose.rot.RotateVector(properties.normal).Normalize();
+
+		math::Vector3 normalVelocity = link->GetRelativeLinearVel().Dot(normalI) * normalI;
+		math::Vector3 tangentialVelocity = link->GetRelativeLinearVel().Dot(tangentialI) * tangentialI;
+
+		math::Vector3 normalAcceleration = link->GetRelativeLinearAccel().Dot(normalI) * normalI;
+		math::Vector3 tangentialAcceleration = link->GetRelativeLinearAccel().Dot(tangentialI) * tangentialI;
+
+		double addedMassT = 0.25 * Mct * this->rho * 3.1415926535 * pow(properties.breadth, 2) * properties.length * tangentialAcceleration.GetLength();
+		double nonLinearDragT = 0.5 * NLDct * this->rho * properties.breadth * pow(tangentialVelocity.GetLength(), 2);
+		double linearDragT = LDct * tangentialVelocity.GetLength();
+
+		math::Vector3 tangentialForce = -1.0 * (addedMassT + linearDragT + nonLinearDragT) * tangentialVelocity.Normalize();
+
+		double addedMassN = 0.25 * Mcn * this->rho * 3.1415926535 * pow(properties.breadth, 2) * properties.length * normalAcceleration.GetLength();
+		double nonLinearDragN = 0.5 * NLDcn * this->rho * properties.breadth * pow(normalVelocity.GetLength(), 2);
+		double linearDragN = LDcn * normalVelocity.GetLength();
+
+		math::Vector3 normalForce = -1.0 * (addedMassN + linearDragN + nonLinearDragN) * normalVelocity.Normalize();
+
+		link->AddLinkForce(normalForce);
+		link->AddLinkForce(tangentialForce);
+
+		if(j==0)
+		{
+			//ROS_INFO_NAMED("link", "***********( %d )************",j+1);
+			//ROS_INFO_NAMED("ID", "linkID: %d", link->GetId());
+			//ROS_INFO_NAMED("force", "force: %0.7lf, %0.7lf, %0.7lf",force.x,force.y,force.z);
+			//ROS_INFO_NAMED("normalI", "normalI: %0.7lf, %0.7lf, %0.7lf",normalI.x,normalI.y,normalI.z);
+			//ROS_INFO_NAMED("tangentialI", "tangentialI: %0.7lf, %0.7lf, %0.7lf",tangentialI.x,tangentialI.y,tangentialI.z);
+			//ROS_INFO_NAMED("normalVelocity", "normalVelocity: %0.7lf, %0.7lf, %0.7lf",normalVelocity.x,normalVelocity.y,normalVelocity.z);
+			//ROS_INFO_NAMED("tangentialVelocity", "tangentialVelocity: %0.7lf, %0.7lf, %0.7lf",tangentialVelocity.x,tangentialVelocity.y,tangentialVelocity.z);	
+			//ROS_INFO_NAMED("end", "******************************\n");			
+		}
+
+		/********************** old approach **********************\
+
 		math::Vector3 vel = link->GetWorldLinearVel(properties.cog);
 		math::Vector3 acc = link->GetWorldLinearAccel();
 
 		if (vel.GetLength() <= 0.01)
 			return;
 
-		math::Pose pose = link->GetWorldPose();
 		math::Vector3 cogI = -pose.rot.RotateVector(properties.cog);
-
-		this->propsMap[link->GetId()].velocity = vel - comVel; //vectorize(properties.omega.Cross(cogI) - comVel);
-		this->propsMap[link->GetId()].acceleration = acc - comAccl; //delVel/0.001;
-
-		math::Vector3 localI = pose.rot.RotateVector(properties.localAxis).Normalize();
-		math::Vector3 tangentialI = pose.rot.RotateVector(properties.tangential).Normalize();
-		math::Vector3 normalI = pose.rot.RotateVector(properties.normal).Normalize();
+		this->propsMap[link->GetId()].velocity = vel;// - comVel; 
+		this->propsMap[link->GetId()].acceleration = acc;// - comAccl;
 
 		double magVelT = properties.velocity.Dot(tangentialI);
 		double magVelN = properties.velocity.Dot(normalI);
@@ -196,29 +240,11 @@ void UWDynamicsPlugin::OnUpdate()
 		double torqueT = 1.0 * (lambda1 * magaccT) + (lambda2 * magVelT) + (lambda3 * magVelT * properties.velocity.GetLength());
 		double torqueN = 1.0 * (lambda1 * magaccN) + (lambda2 * magVelN) + (lambda3 * magVelN * properties.velocity.GetLength());
 		math::Vector3 torque = -1.0 * (torqueT + torqueN) * properties.localAxis;
-
-		if (0)
-		{
-			gzerr << "=============================\n";
-			gzerr << "tangential (inertial): " << tangentialI << "\n";
-			gzerr << "normal (inertial): " << normalI << "\n";
-			gzerr << "LD Normal: " << normalI << "\n";
-			gzerr << "force: " << force << "\n";
-		}
-
+		
 		link->AddForceAtRelativePosition(force, properties.cob);
 		link->AddTorque(torque);
 
-		/*
-		if(j==0)
-		{
-			ROS_INFO_NAMED("link", "***********( %d )************",j+1);
-			ROS_INFO_NAMED("ID", "linkID: %d", link->GetId());
-			ROS_INFO_NAMED("force", "force: %0.7lf, %0.7lf, %0.7lf",force.x,force.y,force.z);
-			ROS_INFO_NAMED("torque", "torque: %0.7lf, %0.7lf, %0.7lf",torque.x,torque.y,torque.z);
-			ROS_INFO_NAMED("end", "******************************\n");			
-		}
-		*/
+		\***************************************************/
 
 		j++;
 	}
@@ -249,12 +275,4 @@ double UWDynamicsPlugin::sgn(double k)
 	if(k < 0) return -1.0;
 	else if (k > 0) return 1.0;
 	else return 0.0;
-}
-
-math::Vector3 UWDynamicsPlugin::vectorize(math::Vector3 vector)
-{
-	if(vector.GetLength() < 0.005)
-		return math::Vector3(0, 0, 0);
-	else
-		return vector;
 }

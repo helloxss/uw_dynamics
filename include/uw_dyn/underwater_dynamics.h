@@ -53,7 +53,6 @@ namespace gazebo
 
     public: void getProperties(physics::JointPtr joint, properties& ptr, math::Vector3 y_axis, math::Vector3 z_axis);
     public: double sgn(double t);
-    public: math::Vector3 vectorize(math::Vector3 vector);
 
     protected: event::ConnectionPtr updateConnection;
     protected: physics::WorldPtr world;
