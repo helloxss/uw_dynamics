@@ -33,13 +33,13 @@ namespace gazebo
     public: double length;
     public: double breadth;
 
-    public: math::Vector3 velocity;
-    public: math::Vector3 acceleration;
+    public: double Mct = 0.0;
+    public: double LDct = 0.1;
+    public: double NLDct = 0.1;
 
-    public: double cF;
-    public: double cD;
-    public: double cA;
-    public: double cM;
+    public: double Mcn = 0.1;
+    public: double LDcn = 0.35;
+    public: double NLDcn = 0.1;
 
   };
 
@@ -52,7 +52,6 @@ namespace gazebo
     protected: virtual void OnUpdate();
 
     public: void getProperties(physics::JointPtr joint, properties& ptr, math::Vector3 y_axis, math::Vector3 z_axis);
-    public: double sgn(double t);
 
     protected: event::ConnectionPtr updateConnection;
     protected: physics::WorldPtr world;
@@ -62,9 +61,6 @@ namespace gazebo
     protected: std::string modelName;
 
     protected: double rho;
-    public: math::Vector3 comVel;
-    public: math::Vector3 comAccl;
-    public: double mass;
     protected: int *lid;
 
     protected: physics::LinkPtr link;
