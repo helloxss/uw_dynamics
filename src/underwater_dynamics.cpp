@@ -78,7 +78,7 @@ void UWDynamicsPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 			this->propsMap[lid[i]].acceleration = math::Vector3(0, 0, 0);
 			this->propsMap[lid[i]].omega = math::Vector3(0, 0, 0);
 
-			this->propsMap[lid[i]].cDt = 0.3393;
+			this->propsMap[lid[i]].cDt = 33.93;
 			this->propsMap[lid[i]].cD2t = 0.001;
 			this->propsMap[lid[i]].cMt = 0.001;
 
@@ -162,7 +162,7 @@ void UWDynamicsPlugin::OnUpdate()
 		double cLinearDrag = 0.5 * properties.cDt * pow(properties.length, 2) * properties.omega.GetLength();
 		double cNonLinearDrag = 0.16666666666666666 * properties.cD2t * this->rho * properties.breadth * pow(properties.length, 3) * pow(properties.omega.GetLength(), 2);
 
-		math::Vector3 force = -1.0 * (cAddedMass + cLinearDrag + cNonLinearDrag) * tangentialI;
+		math::Vector3 force = -1.0 * (cAddedMass + cLinearDrag + cNonLinearDrag) * properties.velocity.Normalize();
 		link->AddLinkForce(force);
 
 		/***************** old approach ********************\
