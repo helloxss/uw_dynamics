@@ -76,6 +76,7 @@ void UWDynamicsPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 			this->propsMap[lid[i]].cog = this->propsMap[lid[i]].tangential * this->propsMap[lid[i]].length/2;
 			this->propsMap[lid[i]].volume = volumeSum;
 
+			/*
 			this->propsMap[lid[i]].Mct = 0.0;
 			this->propsMap[lid[i]].LDct = 0.1;
 			this->propsMap[lid[i]].NLDct = 0.1;
@@ -83,7 +84,16 @@ void UWDynamicsPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 			this->propsMap[lid[i]].Mcn = 0.1;
 			this->propsMap[lid[i]].LDcn = 0.35;
 			this->propsMap[lid[i]].NLDcn = 0.1;
-			
+
+			*/
+			this->propsMap[lid[i]].Mct = 1.0;
+			this->propsMap[lid[i]].LDct = 0.2 * 3.1415926535 / (log(2.0 * this->propsMap[lid[i]].length/this->propsMap[lid[i]].breadth) - 0.807);
+			this->propsMap[lid[i]].NLDct = pow(0.954919498, this->propsMap[lid[i]].length/this->propsMap[lid[i]].breadth);
+
+			this->propsMap[lid[i]].Mcn = 1.0;
+			this->propsMap[lid[i]].LDcn = 0.4 * 3.1415926535 / (log(this->propsMap[lid[i]].length/this->propsMap[lid[i]].breadth) + 0.193); 
+			this->propsMap[lid[i]].NLDcn = pow(0.5130060177, this->propsMap[lid[i]].breadth/this->propsMap[lid[i]].length);
+
 			ROS_INFO_NAMED("link", "***********( %d )************",i+1);
 			ROS_INFO_NAMED("ID", "linkID: %d", lid[i]);
 			ROS_INFO_NAMED("length", "length: %0.7lf",this->propsMap[lid[i]].size[0]);
@@ -134,6 +144,8 @@ void UWDynamicsPlugin::OnUpdate()
 	//###########################################################//
 
 	int j = 0;
+	//double mU = 0.0010518;
+	//double reynolds = 0.0;
 	for (auto link : this->model->GetLinks())
 	{
 		properties properties = this->propsMap[link->GetId()];
@@ -144,29 +156,31 @@ void UWDynamicsPlugin::OnUpdate()
 		math::Vector3 tangentialI = pose.rot.RotateVector(properties.tangential).Normalize();
 		math::Vector3 normalI = pose.rot.RotateVector(properties.normal).Normalize();
 
-		math::Vector3 normalVelocity = link->GetRelativeLinearVel().Dot(normalI) * normalI;
-		math::Vector3 tangentialVelocity = link->GetRelativeLinearVel().Dot(tangentialI) * tangentialI;
+		math::Vector3 normalVelocity = link->GetWorldLinearVel().Dot(normalI) * normalI;
+		math::Vector3 tangentialVelocity = link->GetWorldLinearVel().Dot(tangentialI) * tangentialI;
 
-		math::Vector3 normalAcceleration = link->GetRelativeLinearAccel().Dot(normalI) * normalI;
-		math::Vector3 tangentialAcceleration = link->GetRelativeLinearAccel().Dot(tangentialI) * tangentialI;
+		math::Vector3 normalAcceleration = link->GetWorldLinearAccel().Dot(normalI) * normalI;
+		math::Vector3 tangentialAcceleration = link->GetWorldLinearAccel().Dot(tangentialI) * tangentialI;
 
 		double addedMassT = 0.25 * properties.Mct * this->rho * 3.1415926535 * pow(properties.breadth, 2) * properties.length * tangentialAcceleration.GetLength();
 		double nonLinearDragT = 0.5 * properties.NLDct * this->rho * properties.breadth * pow(tangentialVelocity.GetLength(), 2);
 		double linearDragT = properties.LDct * tangentialVelocity.GetLength();
 
-		math::Vector3 tangentialForce = -1.0 * (addedMassT + linearDragT + nonLinearDragT) * tangentialVelocity.Normalize();
+		math::Vector3 tangentialForce = -1.0 * (addedMassT  + linearDragT  + nonLinearDragT) * tangentialVelocity.Normalize();
+		//reynolds = (this->rho * normalVelocity.GetLength() * properties.breadth) / mU;
 
 		double addedMassN = 0.25 * properties.Mcn * this->rho * 3.1415926535 * pow(properties.breadth, 2) * properties.length * normalAcceleration.GetLength();
 		double nonLinearDragN = 0.5 * properties.NLDcn * this->rho * properties.breadth * pow(normalVelocity.GetLength(), 2);
 		double linearDragN = properties.LDcn * normalVelocity.GetLength();
 
-		math::Vector3 normalForce = -1.0 * (addedMassN + linearDragN + nonLinearDragN) * normalVelocity.Normalize();
+		math::Vector3 normalForce = -1.0 * (addedMassN  + linearDragN + nonLinearDragN) * normalVelocity.Normalize();
 
-		link->AddLinkForce(normalForce);
-		link->AddLinkForce(tangentialForce);
+		link->AddForce(normalForce);
+		link->AddForce(tangentialForce);
 
 		if(j==0)
 		{
+			//ROS_INFO_NAMED("rey", "reynolds: %0.7lf",reynolds);
 			//ROS_INFO_NAMED("link", "***********( %d )************",j+1);
 			//ROS_INFO_NAMED("ID", "linkID: %d", link->GetId());
 			//ROS_INFO_NAMED("force", "force: %0.7lf, %0.7lf, %0.7lf",force.x,force.y,force.z);
