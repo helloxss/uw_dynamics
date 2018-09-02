@@ -156,11 +156,11 @@ void UWDynamicsPlugin::OnUpdate()
 		math::Vector3 tangentialI = pose.rot.RotateVector(properties.tangential).Normalize();
 		math::Vector3 normalI = pose.rot.RotateVector(properties.normal).Normalize();
 
-		math::Vector3 normalVelocity = link->GetWorldLinearVel().Dot(normalI) * normalI;
-		math::Vector3 tangentialVelocity = link->GetWorldLinearVel().Dot(tangentialI) * tangentialI;
+		math::Vector3 normalVelocity = vectorize(link->GetWorldLinearVel()).Dot(normalI) * normalI;
+		math::Vector3 tangentialVelocity = vectorize(link->GetWorldLinearVel()).Dot(tangentialI) * tangentialI;
 
-		math::Vector3 normalAcceleration = link->GetWorldLinearAccel().Dot(normalI) * normalI;
-		math::Vector3 tangentialAcceleration = link->GetWorldLinearAccel().Dot(tangentialI) * tangentialI;
+		math::Vector3 normalAcceleration = vectorize(link->GetWorldLinearAccel()).Dot(normalI) * normalI;
+		math::Vector3 tangentialAcceleration = vectorize(link->GetWorldLinearAccel()).Dot(tangentialI) * tangentialI;
 
 		double addedMassT = 0.25 * properties.Mct * this->rho * 3.1415926535 * pow(properties.breadth, 2) * properties.length * tangentialAcceleration.GetLength();
 		double nonLinearDragT = 0.5 * properties.NLDct * this->rho * properties.breadth * pow(tangentialVelocity.GetLength(), 2);
@@ -186,9 +186,14 @@ void UWDynamicsPlugin::OnUpdate()
 			//ROS_INFO_NAMED("force", "force: %0.7lf, %0.7lf, %0.7lf",force.x,force.y,force.z);
 			//ROS_INFO_NAMED("cogI", "cogI: %0.7lf, %0.7lf, %0.7lf",cogI.x,cogI.y,cogI.z);
 			//ROS_INFO_NAMED("normalI", "normalI: %0.7lf, %0.7lf, %0.7lf",normalI.x,normalI.y,normalI.z);
+			//ROS_INFO_NAMED("Velocity", "Velocity: %0.7lf",link->GetWorldLinearVel().Dot(normalI));
+			//ROS_INFO_NAMED("eacclerationlocity", "Acceleration: %0.7lf",tangentialVelocity.GetLength());			
 			//ROS_INFO_NAMED("tangentialI", "tangentialI: %0.7lf, %0.7lf, %0.7lf",tangentialI.x,tangentialI.y,tangentialI.z);
 			//ROS_INFO_NAMED("normalVelocity", "normalVelocity: %0.7lf, %0.7lf, %0.7lf",normalVelocity.x,normalVelocity.y,normalVelocity.z);
 			//ROS_INFO_NAMED("tangentialVelocity", "tangentialVelocity: %0.7lf, %0.7lf, %0.7lf",tangentialVelocity.x,tangentialVelocity.y,tangentialVelocity.z);	
+			//ROS_INFO_NAMED("forceN", "forceN: %0.7lf, %0.7lf, %0.7lf",normalForce.x,normalForce.y,normalForce.z);
+			//ROS_INFO_NAMED("forceT", "forceT: %0.7lf, %0.7lf, %0.7lf",tangentialForce.x,tangentialForce.y,tangentialForce.z);
+
 			//ROS_INFO_NAMED("end", "******************************\n");			
 		}
 
@@ -214,4 +219,12 @@ void UWDynamicsPlugin::getProperties(physics::JointPtr joint, properties& ptr, m
 	ptr.length = ptr.size.Dot(ptr.tangential);
 	ptr.breadth = ptr.size.Dot(local_axis);
 	ptr.area = ptr.size.Dot(local_axis) * ptr.size.Dot(ptr.tangential);
+}
+
+ math::Vector3 UWDynamicsPlugin::vectorize(math::Vector3 vector)
+ {
+ 	if(vector.GetLength() < 0.001)
+ 		return math::Vector3(0, 0, 0);
+ 	else
+ 		return vector;
 }
