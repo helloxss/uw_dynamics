@@ -90,7 +90,7 @@ void UWDynamicsPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 			this->propsMap[lid[i]].NLDct = pow(0.954919498, this->propsMap[lid[i]].length/this->propsMap[lid[i]].breadth);
 
 			this->propsMap[lid[i]].Mcn = 0.1;//this->rho * pow(this->propsMap[lid[i]].breadth, 2);
-			this->propsMap[lid[i]].LDcn = 0.4 * 3.1415926535 / (log(this->propsMap[lid[i]].length/this->propsMap[lid[i]].breadth) + 0.193); 
+			this->propsMap[lid[i]].LDcn = 0.4 * 3.1415926535 / (log(2.0 * this->propsMap[lid[i]].length/this->propsMap[lid[i]].breadth) + 0.193); 
 			this->propsMap[lid[i]].NLDcn = pow(0.5130060177, this->propsMap[lid[i]].breadth/this->propsMap[lid[i]].length);
 
 			ROS_INFO_NAMED("link", "***********( %d )************",i+1);
@@ -177,8 +177,10 @@ void UWDynamicsPlugin::OnUpdate()
 		link->AddForce(normalForce);
 		link->AddForce(tangentialForce);
 
-		if(j==0)
+		if(j==1)
 		{
+			//ROS_INFO_NAMED("log", "coeffT: %0.7lf",(log(2.0 * properties.length/properties.breadth) - 0.807));
+			//ROS_INFO_NAMED("log", "coeffN: %0.7lf",(log(2.0 * properties.length/properties.breadth) + 0.193));
 			//ROS_INFO_NAMED("Velocity", "Mcn: %0.7lf",properties.Mct);
 			//ROS_INFO_NAMED("eacclerationlocity", "Mtn: %0.7lf",properties.Mcn);			
 			//ROS_INFO_NAMED("rey", "reynolds: %0.7lf",reynolds);
@@ -194,7 +196,6 @@ void UWDynamicsPlugin::OnUpdate()
 			//ROS_INFO_NAMED("tangentialVelocity", "tangentialVelocity: %0.7lf, %0.7lf, %0.7lf",tangentialVelocity.x,tangentialVelocity.y,tangentialVelocity.z);	
 			//ROS_INFO_NAMED("forceN", "forceN: %0.7lf, %0.7lf, %0.7lf",normalForce.x,normalForce.y,normalForce.z);
 			//ROS_INFO_NAMED("forceT", "forceT: %0.7lf, %0.7lf, %0.7lf",tangentialForce.x,tangentialForce.y,tangentialForce.z);
-
 			//ROS_INFO_NAMED("end", "******************************\n");			
 		}
 
