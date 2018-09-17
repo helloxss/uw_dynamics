@@ -92,7 +92,7 @@ void UWDynamicsPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 			this->propsMap[lid[i]].Mcn = 0.1;//this->rho * pow(this->propsMap[lid[i]].breadth, 2);
 			this->propsMap[lid[i]].LDcn = 0.4 * 3.1415926535 / (log(2.0 * this->propsMap[lid[i]].length/this->propsMap[lid[i]].breadth) + 0.193); 
 			this->propsMap[lid[i]].NLDcn = pow(0.5130060177, this->propsMap[lid[i]].breadth/this->propsMap[lid[i]].length);
-
+			/*
 			ROS_INFO_NAMED("link", "***********( %d )************",i+1);
 			ROS_INFO_NAMED("ID", "linkID: %d", lid[i]);
 			ROS_INFO_NAMED("length", "length: %0.7lf",this->propsMap[lid[i]].size[0]);
@@ -105,7 +105,7 @@ void UWDynamicsPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 			ROS_INFO_NAMED("cop", "cop: %0.7lf, %0.7lf, %0.7lf",this->propsMap[lid[i]].cop.x,this->propsMap[lid[i]].cop.y,this->propsMap[lid[i]].cop.z);
 			ROS_INFO_NAMED("cog", "cog: %0.7lf, %0.7lf, %0.7lf",this->propsMap[lid[i]].cog.x,this->propsMap[lid[i]].cog.y,this->propsMap[lid[i]].cog.z);			
 			ROS_INFO_NAMED("end", "******************************\n");
-
+			*/
 		}
 		i++;
 	}
@@ -143,7 +143,8 @@ void UWDynamicsPlugin::OnUpdate()
 	//###########################################################//
 
 	int j = 0;
-	//double mU = 0.0010518;
+	double mU = 0.0000010533;
+	double staticMu = 0.0010518;
 	//double reynolds = 0.0;
 	for (auto link : this->model->GetLinks())
 	{
@@ -158,32 +159,40 @@ void UWDynamicsPlugin::OnUpdate()
 		math::Vector3 normalVelocity = vectorize(link->GetWorldLinearVel()).Dot(normalI) * normalI;
 		math::Vector3 tangentialVelocity = vectorize(link->GetWorldLinearVel()).Dot(tangentialI) * tangentialI;
 
+		double Re = properties.length * link->GetWorldLinearVel().GetLength() / mU;
+		double cdx = 1.0;
+		if (Re>0) cdx = 37/Re;
+		double cdy = 5.46 / fabs(log(7.4/Re));
+
 		math::Vector3 normalAcceleration = vectorize(link->GetWorldLinearAccel()).Dot(normalI) * normalI;
 		math::Vector3 tangentialAcceleration = vectorize(link->GetWorldLinearAccel()).Dot(tangentialI) * tangentialI;
 
 		double addedMassT = 0.25 * properties.Mct * this->rho * 3.1415926535 * pow(properties.breadth, 2) * properties.length * tangentialAcceleration.GetLength();
 		double nonLinearDragT = 0.5 * properties.NLDct * this->rho * properties.breadth * pow(tangentialVelocity.GetLength(), 2);
-		double linearDragT = properties.LDct * tangentialVelocity.GetLength();
+		double linearDragT = cdx * tangentialVelocity.GetLength();
 
 		math::Vector3 tangentialForce = -1.0 * (addedMassT  + linearDragT  + nonLinearDragT) * tangentialVelocity.Normalize();
 		//reynolds = (this->rho * normalVelocity.GetLength() * properties.breadth) / mU;
 
 		double addedMassN = 0.25 * properties.Mcn * this->rho * 3.1415926535 * pow(properties.breadth, 2) * properties.length * normalAcceleration.GetLength();
 		double nonLinearDragN = 0.5 * properties.NLDcn * this->rho * properties.breadth * pow(normalVelocity.GetLength(), 2);
-		double linearDragN = properties.LDcn * normalVelocity.GetLength();
+		double linearDragN = cdy * normalVelocity.GetLength();
 
 		math::Vector3 normalForce = -1.0 * (addedMassN  + linearDragN + nonLinearDragN) * normalVelocity.Normalize();
 
 		link->AddForce(normalForce);
 		link->AddForce(tangentialForce);
 
-		if(j==1)
+		if(j==0)
 		{
 			//ROS_INFO_NAMED("log", "coeffT: %0.7lf",(log(2.0 * properties.length/properties.breadth) - 0.807));
 			//ROS_INFO_NAMED("log", "coeffN: %0.7lf",(log(2.0 * properties.length/properties.breadth) + 0.193));
 			//ROS_INFO_NAMED("Velocity", "Mcn: %0.7lf",properties.Mct);
 			//ROS_INFO_NAMED("eacclerationlocity", "Mtn: %0.7lf",properties.Mcn);			
-			//ROS_INFO_NAMED("rey", "reynolds: %0.7lf",reynolds);
+			//ROS_INFO_NAMED("rey", "Re: %0.7lf",Re);
+			//ROS_INFO_NAMED("rey", "ReT: %0.7lf",ReT);
+			//ROS_INFO_NAMED("cdx", "linearDragT: %0.7lf",linearDragT);
+			//ROS_INFO_NAMED("cdy", "linearDragN: %0.7lf",linearDragN);
 			//ROS_INFO_NAMED("link", "***********( %d )************",j+1);
 			//ROS_INFO_NAMED("ID", "linkID: %d", link->GetId());
 			//ROS_INFO_NAMED("force", "force: %0.7lf, %0.7lf, %0.7lf",force.x,force.y,force.z);
