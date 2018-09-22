@@ -29,6 +29,7 @@ $   </plugin>
 $ </gazebo>
 ```
 *Add the plugin to your robot's URDF/SDF.*
+![alt text](https://raw.githubusercontent.com/imsenthur/uw_dynamics/master/sim.png)
 
 ## Future work:
 Seamless integration of UW_sim package with the developed framework to use UW_sim for rendering and gazebo for dynamics is currently under development.
