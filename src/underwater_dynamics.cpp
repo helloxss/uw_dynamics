@@ -77,22 +77,6 @@ void UWDynamicsPlugin::Load(physics::ModelPtr _model, sdf::ElementPtr _sdf)
 			this->propsMap[lid[i]].volume = volumeSum;
 
 			/*
-			this->propsMap[lid[i]].Mct = 0.0;
-			this->propsMap[lid[i]].LDct = 0.1;
-			this->propsMap[lid[i]].NLDct = 0.1;
-			this->propsMap[lid[i]].Mcn = 0.1;
-			this->propsMap[lid[i]].LDcn = 0.35;
-			this->propsMap[lid[i]].NLDcn = 0.1;
-
-			*/
-			this->propsMap[lid[i]].Mct = 0.1; //this->rho * pow(this->propsMap[lid[i]].breadth, 2) * this->propsMap[lid[i]].length;
-			this->propsMap[lid[i]].LDct = 0.2 * 3.1415926535 / (log(2.0 * this->propsMap[lid[i]].length/this->propsMap[lid[i]].breadth) - 0.807);
-			this->propsMap[lid[i]].NLDct = pow(0.954919498, this->propsMap[lid[i]].length/this->propsMap[lid[i]].breadth);
-
-			this->propsMap[lid[i]].Mcn = 0.1;//this->rho * pow(this->propsMap[lid[i]].breadth, 2);
-			this->propsMap[lid[i]].LDcn = 0.4 * 3.1415926535 / (log(2.0 * this->propsMap[lid[i]].length/this->propsMap[lid[i]].breadth) + 0.193); 
-			this->propsMap[lid[i]].NLDcn = pow(0.5130060177, this->propsMap[lid[i]].breadth/this->propsMap[lid[i]].length);
-			/*
 			ROS_INFO_NAMED("link", "***********( %d )************",i+1);
 			ROS_INFO_NAMED("ID", "linkID: %d", lid[i]);
 			ROS_INFO_NAMED("length", "length: %0.7lf",this->propsMap[lid[i]].size[0]);
@@ -145,40 +129,56 @@ void UWDynamicsPlugin::OnUpdate()
 	int j = 0;
 	double mU = 0.0000010533;
 	double staticMu = 0.0010518;
+	double Re, cdx, cdy, cd2x, cd2y, Mct, Mcn;
+	double addedMassT, linearDragT, nonLinearDragT;
+	double addedMassN, linearDragN, nonLinearDragN, magTorque;
+	math::Vector3 cogI, localI, tangentialI, normalI;
+	math::Pose pose;
+	math::Vector3 normalVelocity, tangentialVelocity, normalAcceleration, tangentialAcceleration;
+	math::Vector3 tangentialForce, normalForce, torque;
+
 	//double reynolds = 0.0;
 	for (auto link : this->model->GetLinks())
 	{
 		properties properties = this->propsMap[link->GetId()];
 
-		math::Pose pose = link->GetWorldPose();
-		math::Vector3 cogI = -1.0 * pose.rot.RotateVector(properties.cog).Normalize();
-		math::Vector3 localI = pose.rot.RotateVector(properties.localAxis).Normalize();
-		math::Vector3 tangentialI = pose.rot.RotateVector(properties.tangential).Normalize();
-		math::Vector3 normalI = pose.rot.RotateVector(properties.normal).Normalize();
+		pose = link->GetWorldPose();
+		cogI = -1.0 * pose.rot.RotateVector(properties.cog).Normalize();
+		localI = pose.rot.RotateVector(properties.localAxis).Normalize();
+		tangentialI = pose.rot.RotateVector(properties.tangential).Normalize();
+		normalI = pose.rot.RotateVector(properties.normal).Normalize();
 
-		math::Vector3 normalVelocity = vectorize(link->GetWorldLinearVel()).Dot(normalI) * normalI;
-		math::Vector3 tangentialVelocity = vectorize(link->GetWorldLinearVel()).Dot(tangentialI) * tangentialI;
+		normalVelocity = vectorize(link->GetWorldLinearVel()).Dot(normalI) * normalI;
+		tangentialVelocity = vectorize(link->GetWorldLinearVel()).Dot(tangentialI) * tangentialI;
 
-		double Re = properties.length * link->GetWorldLinearVel().GetLength() / mU;
-		double cdx = 1.0;
+		Re = properties.length * link->GetWorldLinearVel().GetLength() / mU;
+		cdx = 1.0;
 		if (Re>0) cdx = 37/Re;
-		double cdy = 5.46 / fabs(log(7.4/Re));
+		cdy = 5.46 / fabs(log(7.4/Re));
+		cd2x = 2.05;
+		cd2y = 1.194168458 - (5.497152291 * pow(10, -7) * Re) + (1.157891348 * pow(10, -13) * Re * Re) - (6.667467337 * pow(10, -21) * Re * Re * Re);
+		Mct = 8.0/3;
+		Mcn = 1;
 
-		math::Vector3 normalAcceleration = vectorize(link->GetWorldLinearAccel()).Dot(normalI) * normalI;
-		math::Vector3 tangentialAcceleration = vectorize(link->GetWorldLinearAccel()).Dot(tangentialI) * tangentialI;
+		normalAcceleration = vectorize(link->GetWorldLinearAccel()).Dot(normalI) * normalI;
+		tangentialAcceleration = vectorize(link->GetWorldLinearAccel()).Dot(tangentialI) * tangentialI;
 
-		double addedMassT = 0.25 * properties.Mct * this->rho * 3.1415926535 * pow(properties.breadth, 2) * properties.length * tangentialAcceleration.GetLength();
-		double nonLinearDragT = 0.5 * properties.NLDct * this->rho * properties.breadth * pow(tangentialVelocity.GetLength(), 2);
-		double linearDragT = cdx * tangentialVelocity.GetLength();
+		addedMassT = 0.25 * Mct * this->rho * pow(properties.breadth, 2) * properties.length * tangentialAcceleration.GetLength();
+		nonLinearDragT = 0.5 * cd2x * this->rho * properties.breadth * pow(tangentialVelocity.GetLength(), 2);
+		linearDragT = cdx * tangentialVelocity.GetLength();
 
-		math::Vector3 tangentialForce = -1.0 * (addedMassT  + linearDragT  + nonLinearDragT) * tangentialVelocity.Normalize();
-		//reynolds = (this->rho * normalVelocity.GetLength() * properties.breadth) / mU;
+		addedMassN = 0.25 * Mcn * this->rho * 3.1415926535 * pow(properties.breadth, 2) * properties.length * normalAcceleration.GetLength();
+		nonLinearDragN = 0.5 * cd2y * this->rho * properties.breadth * pow(normalVelocity.GetLength(), 2);
+		linearDragN = cdy * normalVelocity.GetLength();
 
-		double addedMassN = 0.25 * properties.Mcn * this->rho * 3.1415926535 * pow(properties.breadth, 2) * properties.length * normalAcceleration.GetLength();
-		double nonLinearDragN = 0.5 * properties.NLDcn * this->rho * properties.breadth * pow(normalVelocity.GetLength(), 2);
-		double linearDragN = cdy * normalVelocity.GetLength();
+		normalForce = -1.0 * (addedMassN  + linearDragN + nonLinearDragN) * normalVelocity.Normalize();
+		tangentialForce = -1.0 * (addedMassT  + linearDragT  + nonLinearDragT) * tangentialVelocity.Normalize();
 
-		math::Vector3 normalForce = -1.0 * (addedMassN  + linearDragN + nonLinearDragN) * normalVelocity.Normalize();
+		magTorque = 0.16666666666 * this->rho * cd2y * properties.breadth * pow(properties.length, 2) * pow(normalVelocity.GetLength(), 2) + 
+					0.04166666666 * this->rho * 3.1415926535 * pow(properties.breadth, 2) * pow(properties.length, 2) * normalAcceleration.GetLength();
+
+		torque = magTorque * normalForce.Cross(properties.cob).Normalize();
+		link->AddTorque(torque);
 
 		link->AddForce(normalForce);
 		link->AddForce(tangentialForce);

@@ -32,15 +32,6 @@ namespace gazebo
     public: double area;
     public: double length;
     public: double breadth;
-
-    public: double Mct = 0.0;
-    public: double LDct = 0.1;
-    public: double NLDct = 0.1;
-
-    public: double Mcn = 0.1;
-    public: double LDcn = 0.35;
-    public: double NLDcn = 0.1;
-
   };
 
   class UWDynamicsPlugin : public ModelPlugin
