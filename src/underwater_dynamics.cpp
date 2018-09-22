@@ -141,7 +141,6 @@ void UWDynamicsPlugin::OnUpdate()
 	for (auto link : this->model->GetLinks())
 	{
 		properties properties = this->propsMap[link->GetId()];
-
 		pose = link->GetWorldPose();
 		cogI = -1.0 * pose.rot.RotateVector(properties.cog).Normalize();
 		localI = pose.rot.RotateVector(properties.localAxis).Normalize();
@@ -177,8 +176,9 @@ void UWDynamicsPlugin::OnUpdate()
 		magTorque = 0.16666666666 * this->rho * cd2y * properties.breadth * pow(properties.length, 2) * pow(normalVelocity.GetLength(), 2) + 
 					0.04166666666 * this->rho * 3.1415926535 * pow(properties.breadth, 2) * pow(properties.length, 2) * normalAcceleration.GetLength();
 
-		torque = magTorque * normalForce.Cross(properties.cob).Normalize();
-		link->AddTorque(torque);
+		torque = magTorque * normalForce.Cross(properties.cog).Normalize();
+
+		//link->AddRelativeTorque(torque);
 
 		link->AddForce(normalForce);
 		link->AddForce(tangentialForce);
